@@ -328,9 +328,16 @@ class PssAuth:
             raise PssApiError("Respuesta sin <UserEmailPasswordAuthorize>")
         _log.info("[email-password-flow] paso2 attrs=%s", dict(node.attrib))
 
-        token = node.attrib.get("accessToken") or ""
+        # La respuesta EXITOSA trae refreshToken + UserId (sin accessToken directo);
+        # los errores traen errorMessage. Chequear éxito PRIMERO.
+        refresh = node.attrib.get("refreshToken") or ""
         user_id = int(node.attrib.get("UserId", node.attrib.get("userId", "0")) or 0)
-        if not token or not user_id:
+
+        if user_id and (refresh or node.attrib.get("accessToken")):
+            # LOGIN CORRECTO: pasar al paso 3 con el refreshToken
+            _log.info("[email-password-flow] paso2 LOGIN OK UserId=%s (refresh=%s)",
+                      user_id, bool(refresh))
+        else:
             # errores específicos de la API
             err = node.attrib.get("errorMessage") or "Authorize falló"
             _log.warning("[email-password-flow] paso2 FALLO errorMessage=%r errorCode=%r",
@@ -339,14 +346,14 @@ class PssAuth:
                 raise PssApiError("Email o contraseña incorrectos.")
             raise PssApiError(err)
 
-        refresh = node.attrib.get("refreshToken") or ""
-
         # PASO 3: si hay refreshToken, canjearlo por el token owner
         if refresh:
             try:
                 step3 = await self._device_login_raw(device_key, refresh_token=refresh)
                 at3 = step3.attrib.get("accessToken") or ""
                 uid3 = int(step3.attrib.get("UserId", "0") or 0)
+                _log.info("[email-password-flow] paso3 DeviceLogin17(refresh) UserId=%s token=%s...",
+                          uid3, at3[:8])
                 if at3 and uid3 == user_id:
                     return UserLogin(
                         access_token=at3,
@@ -354,11 +361,15 @@ class PssAuth:
                         previous_last_login_date=step3.attrib.get("PreviousLastLoginDate"),
                         raw=dict(step3.attrib),
                     )
-            except Exception:
-                pass  # el token del paso 2 ya sirve para la mayoría de endpoints
+                _log.warning("[email-password-flow] paso3 user mismatch: %s != %s", uid3, user_id)
+            except Exception as exc:
+                _log.warning("[email-password-flow] paso3 excepción: %r", exc)
 
+        # Fallback: si el paso 3 no devolvió token, usar el accessToken directo
+        # del paso 2 (algunos builds lo incluyen) o el refreshToken como token.
+        fallback_token = node.attrib.get("accessToken") or refresh
         return UserLogin(
-            access_token=token,
+            access_token=fallback_token,
             user_id=user_id,
             previous_last_login_date=node.attrib.get("PreviousLastLoginDate"),
             raw=dict(node.attrib),
