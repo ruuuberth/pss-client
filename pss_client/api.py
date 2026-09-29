@@ -1,4 +1,8 @@
-"""API REST wrapper para pss_client - permite usar el backend desde un frontend web."""
+"""API REST wrapper para pss_client - permite usar el backend desde un frontend web.
+
+Método de autenticación ÚNICO: email + contraseña (flujo pss-companion de 3 pasos).
+Los demás métodos (device-key, steam, checksum debug) fueron eliminados a petición.
+"""
 
 import logging
 import sys
@@ -12,11 +16,11 @@ from typing import Optional
 import asyncio
 import os
 
-from pss_client.auth import PssAuth, create_checksum, CHECKSUM_KEY, SAVY_CHECKSUM
-from pss_client.transport import PssApiError
+from pss_client.auth import PssAuth, UserLogin
+from pss_client.transport import PssApiError, PssHttpClient
 from pss_client.ship import PssShipService
 
-# --- Logging: archivo + consola, con rotación -------------------------------- #
+# --- Logging: archivo + consola ---------------------------------------------- #
 LOG_FILE = os.path.join(os.path.dirname(__file__), "..", "pss-client.log")
 logging.basicConfig(
     level=logging.DEBUG,
@@ -28,7 +32,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("pss_client.api")
 
-app = FastAPI(title="PSS API Gateway", version="0.1.0")
+app = FastAPI(title="PSS API Gateway", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -47,171 +51,137 @@ async def root():
     index_path = os.path.join(frontend_dir, "index.html")
     return FileResponse(index_path)
 
-@app.get("/debug/path")
-async def debug_path():
-    return {
-        "frontend_dir": frontend_dir,
-        "index_exists": os.path.exists(os.path.join(frontend_dir, "index.html")),
-        "cwd": os.getcwd()
-    }
-
-# Estado global de sesiones autenticadas (en producción usar Redis/DB)
-active_sessions = {}
-
-
-class DeviceLoginRequest(BaseModel):
-    device_key: str
-
-
-class EmailPasswordRequest(BaseModel):
-    email: Optional[str] = None  # opcional: el login real usa deviceKey+password
-    password: str
-    device_key: Optional[str] = None
-    version: int = 4
-    device_type: str = "DeviceTypeAndroid"
-
-
-class SteamLoginRequest(BaseModel):
-    ticket: str
-    device_key: Optional[str] = None
-
-
-class ChecksumRequest(BaseModel):
-    device_key: str
-    device_type: str = "DeviceTypeAndroid"
-
-
-@app.post("/auth/device-login")
-async def device_login(req: DeviceLoginRequest):
-    """Login con device_key existente (cuenta ya ligada al dispositivo)."""
-    async with PssAuth() as auth:
-        try:
-            login = await auth.device_login(device_key=req.device_key)
-            session_token = f"sess_{login.user_id}_{login.access_token[:16]}"
-            active_sessions[session_token] = login
-            return {
-                "success": True,
-                "session_token": session_token,
-                "user_id": login.user_id,
-                "access_token": login.access_token,
-                "previous_last_login": login.previous_last_login_date,
-            }
-        except PssApiError as e:
-            # Detectar el caso "cuenta verificada vinculada" (JSON con reason)
-            import json as _json
-            try:
-                detail = _json.loads(str(e))
-                if detail.get("reason") == "linked_account":
-                    return {
-                        "success": False,
-                        "reason": "linked_account",
-                        "email": detail.get("email"),
-                        "user_id": detail.get("user_id"),
-                        "message": "Tu cuenta está verificada y vinculada a email/Steam. "
-                                   "Usa la pestaña 'Email + Pass' con tu contraseña, o 'Steam' con tu ticket.",
-                    }
-            except (ValueError, KeyError):
-                pass
-            raise HTTPException(status_code=401, detail=str(e))
-
-
-@app.post("/auth/email-password")
-async def email_password(req: EmailPasswordRequest):
-    """Login con email y contraseña."""
-    import hashlib as _h
-    logger.info("[email-password] intento login email=%s device_key_provided=%s",
-                req.email, bool(req.device_key))
-    device_key = req.device_key
-    async with PssAuth() as auth:
-        try:
-            login = await auth.email_password_login(
-                email=req.email or "",
-                password=req.password,
-                device_key=device_key,
-            )
-            session_token = f"sess_{login.user_id}_{login.access_token[:16]}"
-            active_sessions[session_token] = login
-            logger.info("[email-password] LOGIN OK user_id=%s session=%s",
-                        login.user_id, session_token)
-            return {
-                "success": True,
-                "session_token": session_token,
-                "user_id": login.user_id,
-                "access_token": login.access_token,
-            }
-        except PssApiError as e:
-            msg = str(e)
-            logger.warning("[email-password] FALLO email=%s error=%r", req.email, msg)
-            if "Email or password is incorrect" in msg or "Email o contraseña incorrectos" in msg:
-                msg = "Email o contraseña incorrectos. Verifica tus credenciales de Pixel Starships."
-            elif "An error occurred" in msg:
-                msg = ("El servidor rechazó el login. Verifica email y contraseña. "
-                       "(Si tu cuenta es solo-Steam, usa la pestaña Steam).")
-            elif "Authorize falló" in msg:
-                msg = ("Authorize falló (sin mensaje del servidor). Revisa pss-client.log "
-                       "para ver la respuesta cruda de la API.")
-            raise HTTPException(status_code=401, detail=msg)
-
-
-@app.post("/auth/steam-login")
-async def steam_login(req: SteamLoginRequest):
-    """Login con ticket de sesión Steam."""
-    async with PssAuth() as auth:
-        try:
-            login = await auth.steam_login(
-                ticket=req.ticket,
-                device_key=req.device_key,
-            )
-            session_token = f"sess_{login.user_id}_{login.access_token[:16]}"
-            active_sessions[session_token] = login
-            return {
-                "success": True,
-                "session_token": session_token,
-                "user_id": login.user_id,
-                "access_token": login.access_token,
-            }
-        except PssApiError as e:
-            raise HTTPException(status_code=401, detail=str(e))
-
-
-@app.post("/auth/checksum")
-async def generate_checksum(req: ChecksumRequest):
-    """Genera checksum para debug/pruebas."""
-    from datetime import datetime, timezone
-    checksum = create_checksum(
-        device_key=req.device_key,
-        client_datetime=datetime.now(timezone.utc),
-        device_type=req.device_type,
-    )
-    return {
-        "checksum": checksum,
-        "checksum_key": CHECKSUM_KEY,
-        "savy_checksum": SAVY_CHECKSUM,
-    }
-
-
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "pss-api-gateway"}
 
+# Estado global de sesiones autenticadas (en producción usar Redis/DB)
+active_sessions: dict[str, UserLogin] = {}
 
-# --- Ship endpoints ---
 
-class ShipInfoRequest(BaseModel):
+# --- Auth: ÚNICO método email+password -------------------------------------- #
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class SessionRequest(BaseModel):
     session_token: str
 
 
-@app.post("/ship/info")
-async def get_ship_info(req: ShipInfoRequest):
-    """Obtiene la información de la nave del usuario autenticado."""
-    login = active_sessions.get(req.session_token)
+@app.post("/auth/login")
+async def login(req: LoginRequest):
+    """Login con email y contraseña (flujo pss-companion de 3 pasos)."""
+    logger.info("[login] intento login email=%s", req.email)
+    async with PssAuth() as auth:
+        try:
+            login = await auth.email_password_login(
+                email=req.email,
+                password=req.password,
+            )
+            session_token = f"sess_{login.user_id}_{login.access_token[:16]}"
+            active_sessions[session_token] = login
+            logger.info("[login] LOGIN OK user_id=%s session=%s", login.user_id, session_token)
+            # Datos del usuario para el dashboard (nombre, créditos, trofeos...)
+            user_info = _extract_user_info(login)
+            return {
+                "success": True,
+                "session_token": session_token,
+                "user_id": login.user_id,
+                "access_token": login.access_token,
+                "user": user_info,
+            }
+        except PssApiError as e:
+            msg = str(e)
+            logger.warning("[login] FALLO email=%s error=%r", req.email, msg)
+            if "Email or password is incorrect" in msg or "Email o contraseña incorrectos" in msg:
+                msg = "Email o contraseña incorrectos. Verifica tus credenciales de Pixel Starships."
+            elif "An error occurred" in msg:
+                msg = ("El servidor rechazó el login. Verifica email y contraseña. "
+                       "(Si tu cuenta es solo-Steam, este método no aplica).")
+            raise HTTPException(status_code=401, detail=msg)
+
+
+def _extract_user_info(login: UserLogin) -> dict:
+    """Extrae los datos del <User> embebido en raw (si existe)."""
+    raw = getattr(login, "raw", None) or {}
+    info = {
+        "user_id": login.user_id,
+        "name": raw.get("Name"),
+        "email": raw.get("Email"),
+        "user_type": raw.get("UserType"),
+        "credits": raw.get("Credits"),
+        "trophy": raw.get("Trophy"),
+    }
+    return {k: v for k, v in info.items() if v is not None}
+
+
+# --- Sesión ----------------------------------------------------------------- #
+
+def _require_session(session_token: str) -> UserLogin:
+    login = active_sessions.get(session_token)
     if not login:
         raise HTTPException(status_code=401, detail="Sesión inválida o expirada")
+    return login
 
+
+@app.post("/auth/logout")
+async def logout(req: SessionRequest):
+    """Cierra la sesión local (borra el token del dict en memoria)."""
+    if req.session_token in active_sessions:
+        del active_sessions[req.session_token]
+        logger.info("[logout] sesión cerrada %s", req.session_token[:20])
+    return {"success": True}
+
+
+# --- User / cuenta ----------------------------------------------------------- #
+
+@app.post("/user/me")
+async def user_me(req: SessionRequest):
+    """Datos de la cuenta autenticada (desde GetCurrentUser)."""
+    login = _require_session(req.session_token)
+    http = PssHttpClient()
     try:
-        ship_service = PssShipService(login._http if hasattr(login, '_http') else None)
-        # Crear cliente HTTP temporal con el access_token
-        from pss_client.transport import PssHttpClient
+        resp = await http.request(
+            "UserService/GetCurrentUser",
+            method="POST",
+            response_root_tag="GetCurrentUser",
+            accessToken=login.access_token,
+        )
+        node = resp.root if resp.root.tag == "GetCurrentUser" else resp.root.find(".//GetCurrentUser")
+        if node is None:
+            return {"success": True, "user": _extract_user_info(login)}
+        user_node = node.find(".//User")
+        user_attrs = dict(user_node.attrib) if user_node is not None else dict(node.attrib)
+        return {
+            "success": True,
+            "user": {
+                "user_id": user_attrs.get("Id") or user_attrs.get("UserId") or login.user_id,
+                "name": user_attrs.get("Name"),
+                "email": user_attrs.get("Email"),
+                "user_type": user_attrs.get("UserType"),
+                "credits": user_attrs.get("Credits"),
+                "trophy": user_attrs.get("Trophy"),
+                "gender": user_attrs.get("GenderType"),
+                "race": user_attrs.get("RaceType"),
+                "last_login": user_attrs.get("LastLoginDate"),
+            },
+        }
+    except PssApiError as e:
+        logger.warning("[user/me] error: %r", str(e))
+        return {"success": True, "user": _extract_user_info(login)}
+    finally:
+        await http.close()
+
+
+# --- Ship -------------------------------------------------------------------- #
+
+@app.post("/ship/info")
+async def get_ship_info(req: SessionRequest):
+    """Obtiene la información de la nave del usuario autenticado."""
+    login = _require_session(req.session_token)
+    try:
         http = PssHttpClient()
         ship_service = PssShipService(http)
         ship = await ship_service.get_ship_by_user_id(
@@ -271,45 +241,20 @@ async def get_ship_info(req: ShipInfoRequest):
                 }
                 for r in ship.rooms
             ],
+            "items": [
+                {
+                    "item_id": i.item_id,
+                    "item_design_id": i.item_design_id,
+                    "amount": i.amount,
+                    "room_id": i.room_id,
+                }
+                for i in ship.items
+            ],
         }
     except PssApiError as e:
         raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error interno: {e}")
-
-
-@app.post("/ship/inspect")
-async def inspect_ship(req: ShipInfoRequest):
-    """Inspecciona la nave (devuelve nave + info de usuario)."""
-    login = active_sessions.get(req.session_token)
-    if not login:
-        raise HTTPException(status_code=401, detail="Sesión inválida o expirada")
-
-    try:
-        from pss_client.transport import PssHttpClient
-        http = PssHttpClient()
-        ship_service = PssShipService(http)
-        ship, user_data = await ship_service.inspect_ship(
-            access_token=login.access_token,
-            user_id=login.user_id,
-        )
-        await http.close()
-        return {
-            "success": True,
-            "ship": {
-                "ship_id": ship.ship_id,
-                "ship_name": ship.ship_name,
-                "ship_level": ship.ship_level,
-                "ship_status": ship.ship_status,
-                "hp": ship.hp,
-                "shield": ship.shield,
-                "power_score": ship.power_score,
-            },
-            "user": user_data,
-        }
-    except PssApiError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    except Exception as e:
+        logger.exception("[ship/info] error interno")
         raise HTTPException(status_code=500, detail=f"Error interno: {e}")
 
 

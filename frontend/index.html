@@ -1,1138 +1,594 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PSS Client - Pixel Starships</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg-deep: #08090a;
-            --bg-panel: #0f1011;
-            --bg-surface: #191a1b;
-            --bg-elevated: #23252a;
-            
-            --text-primary: #f7f8f8;
-            --text-secondary: #d0d6e0;
-            --text-muted: #8a8f98;
-            --text-subtle: #62666d;
-            
-            --accent: #5e6ad2;
-            --accent-hover: #7170ff;
-            --accent-light: #828fff;
-            
-            --border-subtle: rgba(255,255,255,0.05);
-            --border-standard: rgba(255,255,255,0.08);
-            --border-strong: rgba(255,255,255,0.12);
-            
-            --success: #10b981;
-            --success-bg: rgba(16,185,129,0.15);
-            --error: #ef4444;
-            --error-bg: rgba(239,68,68,0.15);
-            --warning: #f59e0b;
-            
-            --shadow-sm: rgba(0,0,0,0.2) 0px 1px 2px;
-            --shadow-md: rgba(0,0,0,0.3) 0px 4px 12px;
-            --shadow-lg: rgba(0,0,0,0.4) 0px 12px 24px;
-            --shadow-xl: rgba(0,0,0,0.5) 0px 20px 40px;
-            
-            --radius-sm: 4px;
-            --radius-md: 6px;
-            --radius-lg: 8px;
-            --radius-xl: 12px;
-            --radius-pill: 9999px;
-            
-            --space-1: 4px;
-            --space-2: 8px;
-            --space-3: 12px;
-            --space-4: 16px;
-            --space-5: 20px;
-            --space-6: 24px;
-            --space-8: 32px;
-            --space-10: 40px;
-            --space-12: 48px;
-            
-            --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-            --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            
-            --font-size-xs: 11px;
-            --font-size-sm: 13px;
-            --font-size-base: 15px;
-            --font-size-lg: 16px;
-            --font-size-xl: 18px;
-            --font-size-2xl: 20px;
-            --font-size-3xl: 24px;
-            --font-size-4xl: 32px;
-            
-            --transition-fast: 120ms ease;
-            --transition-normal: 200ms ease;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        html {
-            font-size: 15px;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-        }
-
-        body {
-            font-family: var(--font-sans);
-            font-size: var(--font-size-base);
-            font-weight: 400;
-            line-height: 1.55;
-            letter-spacing: -0.01em;
-            color: var(--text-primary);
-            background: var(--bg-deep);
-            min-height: 100vh;
-            padding: var(--space-6) var(--space-4);
-        }
-
-        .container {
-            max-width: 480px;
-            margin: 0 auto;
-        }
-
-        /* Typography */
-        h1 {
-            font-size: var(--font-size-3xl);
-            font-weight: 510;
-            line-height: 1.15;
-            letter-spacing: -0.02em;
-            color: var(--text-primary);
-            text-align: center;
-            margin-bottom: var(--space-8);
-        }
-        h1 span { color: var(--accent); }
-
-        h2 {
-            font-size: var(--font-size-lg);
-            font-weight: 510;
-            line-height: 1.3;
-            color: var(--text-primary);
-            margin-bottom: var(--space-4);
-        }
-
-        h3 {
-            font-size: var(--font-size-base);
-            font-weight: 510;
-            line-height: 1.4;
-            color: var(--text-secondary);
-        }
-
-        label {
-            display: block;
-            font-size: var(--font-size-sm);
-            font-weight: 400;
-            color: var(--text-muted);
-            margin-bottom: var(--space-2);
-        }
-
-        .caption {
-            font-size: var(--font-size-xs);
-            color: var(--text-subtle);
-            line-height: 1.5;
-        }
-
-        .text-mono {
-            font-family: var(--font-mono);
-            font-size: var(--font-size-sm);
-        }
-
-        /* Layout */
-        .card {
-            background: var(--bg-surface);
-            border: 1px solid var(--border-standard);
-            border-radius: var(--radius-lg);
-            padding: var(--space-5);
-            margin-bottom: var(--space-4);
-        }
-
-        .card-elevated {
-            background: var(--bg-elevated);
-            box-shadow: var(--shadow-md);
-        }
-
-        .section {
-            margin-bottom: var(--space-5);
-        }
-        .section:last-child { margin-bottom: 0; }
-
-        .section-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: var(--space-4);
-        }
-
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 2px 8px;
-            font-size: var(--font-size-xs);
-            font-weight: 510;
-            border-radius: var(--radius-pill);
-            background: var(--border-subtle);
-            color: var(--text-muted);
-        }
-
-        .badge-success {
-            background: var(--success-bg);
-            color: var(--success);
-        }
-
-        /* Form elements */
-        .form-group { margin-bottom: var(--space-4); }
-
-        .input-wrapper {
-            display: flex;
-            gap: var(--space-2);
-        }
-
-        input, select {
-            width: 100%;
-            padding: var(--space-3) var(--space-4);
-            font-family: inherit;
-            font-size: var(--font-size-base);
-            font-weight: 400;
-            color: var(--text-primary);
-            background: var(--bg-panel);
-            border: 1px solid var(--border-standard);
-            border-radius: var(--radius-md);
-            transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
-        }
-
-        input:focus, select:focus {
-            outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(94, 106, 210, 0.15);
-            background: var(--bg-surface);
-        }
-
-        input::placeholder {
-            color: var(--text-subtle);
-        }
-
-        .input-with-button {
-            flex: 1;
-        }
-
-        .btn-icon {
-            flex: 0 0 44px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: var(--space-2);
-            padding: 0;
-            width: 44px;
-            height: 44px;
-        }
-
-        /* Buttons */
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: var(--space-2);
-            width: 100%;
-            padding: var(--space-3) var(--space-5);
-            font-family: inherit;
-            font-size: var(--font-size-base);
-            font-weight: 510;
-            line-height: 1.2;
-            border-radius: var(--radius-md);
-            border: 1px solid transparent;
-            cursor: pointer;
-            transition: all var(--transition-fast);
-            white-space: nowrap;
-        }
-
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .btn-primary {
-            background: var(--accent);
-            color: #fff;
-            border-color: var(--accent);
-        }
-        .btn-primary:hover:not(:disabled) {
-            background: var(--accent-hover);
-            border-color: var(--accent-hover);
-        }
-        .btn-primary:active:not(:disabled) {
-            background: var(--accent);
-        }
-
-        .btn-ghost {
-            background: rgba(255,255,255,0.02);
-            color: var(--text-secondary);
-            border-color: var(--border-standard);
-        }
-        .btn-ghost:hover:not(:disabled) {
-            background: rgba(255,255,255,0.05);
-            color: var(--text-primary);
-            border-color: var(--border-strong);
-        }
-
-        .btn-danger {
-            background: var(--error);
-            color: #fff;
-            border-color: var(--error);
-        }
-        .btn-danger:hover:not(:disabled) {
-            background: #dc2626;
-            border-color: #dc2626;
-        }
-
-        .btn-sm {
-            padding: var(--space-2) var(--space-3);
-            font-size: var(--font-size-sm);
-        }
-
-        /* Tabs */
-        .tabs {
-            display: flex;
-            gap: var(--space-2);
-            margin-bottom: var(--space-6);
-            background: var(--bg-panel);
-            padding: var(--space-1);
-            border-radius: var(--radius-lg);
-            border: 1px solid var(--border-standard);
-        }
-
-        .tab {
-            flex: 1;
-            padding: var(--space-2) var(--space-4);
-            font-family: inherit;
-            font-size: var(--font-size-sm);
-            font-weight: 510;
-            color: var(--text-muted);
-            background: transparent;
-            border: none;
-            border-radius: var(--radius-md);
-            cursor: pointer;
-            transition: all var(--transition-fast);
-            white-space: nowrap;
-        }
-
-        .tab:hover { color: var(--text-secondary); }
-
-        .tab.active {
-            color: var(--text-primary);
-            background: var(--bg-surface);
-            box-shadow: var(--shadow-sm);
-        }
-
-        .tab-panel { display: none; }
-        .tab-panel.active { display: block; animation: fadeIn var(--transition-normal); }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(4px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* Sub-tabs */
-        .sub-tabs {
-            display: flex;
-            gap: var(--space-1);
-            margin-bottom: var(--space-4);
-            overflow-x: auto;
-            padding-bottom: var(--space-1);
-        }
-
-        .sub-tab {
-            flex: 0 0 auto;
-            padding: var(--space-2) var(--space-4);
-            font-family: inherit;
-            font-size: var(--font-size-sm);
-            font-weight: 510;
-            color: var(--text-muted);
-            background: var(--bg-panel);
-            border: 1px solid var(--border-subtle);
-            border-radius: var(--radius-pill);
-            cursor: pointer;
-            transition: all var(--transition-fast);
-            white-space: nowrap;
-        }
-
-        .sub-tab:hover { color: var(--text-secondary); border-color: var(--border-standard); }
-
-        .sub-tab.active {
-            color: var(--text-primary);
-            background: var(--accent);
-            border-color: var(--accent);
-        }
-
-        .sub-panel { display: none; }
-        .sub-panel.active { display: block; animation: fadeIn var(--transition-normal); }
-
-        /* Status */
-        .status {
-            display: inline-flex;
-            align-items: center;
-            padding: var(--space-1) var(--space-3);
-            font-size: var(--font-size-xs);
-            font-weight: 510;
-            border-radius: var(--radius-pill);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .status-docked { background: var(--success-bg); color: var(--success); }
-        .status-traveling { background: rgba(52,152,219,0.2); color: #3498db; }
-        .status-battle { background: var(--error-bg); color: var(--error); }
-        .status-default { background: var(--border-subtle); color: var(--text-muted); }
-
-        /* Stats grid */
-        .stat-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: var(--space-3);
-            margin-bottom: var(--space-4);
-        }
-
-        .stat-card {
-            background: var(--bg-panel);
-            border: 1px solid var(--border-standard);
-            border-radius: var(--radius-md);
-            padding: var(--space-4);
-            text-align: center;
-        }
-
-        .stat-label {
-            font-size: var(--font-size-xs);
-            font-weight: 510;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--text-subtle);
-        }
-
-        .stat-value {
-            font-size: var(--font-size-xl);
-            font-weight: 510;
-            line-height: 1.2;
-            color: var(--text-primary);
-            margin-top: var(--space-1);
-        }
-
-        .stat-value.hp { color: var(--error); }
-        .stat-value.shield { color: #3498db; }
-        .stat-value.power { color: var(--warning); }
-
-        /* Lists */
-        .list { display: flex; flex-direction: column; gap: var(--space-3); }
-
-        .list-item {
-            background: var(--bg-panel);
-            border: 1px solid var(--border-standard);
-            border-radius: var(--radius-md);
-            padding: var(--space-4);
-        }
-
-        .list-item-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: var(--space-3);
-        }
-
-        .list-item-name {
-            font-size: var(--font-size-base);
-            font-weight: 510;
-            color: var(--text-primary);
-        }
-
-        .list-item-level {
-            padding: 2px 8px;
-            font-size: var(--font-size-xs);
-            font-weight: 510;
-            border-radius: var(--radius-pill);
-            background: var(--accent);
-            color: #fff;
-        }
-
-        .item-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
-            gap: var(--space-2);
-            font-size: var(--font-size-sm);
-        }
-
-        .stat-pair { text-align: center; }
-
-        .stat-pair .label {
-            display: block;
-            font-size: var(--font-size-xs);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--text-subtle);
-        }
-
-        .stat-pair .value {
-            display: block;
-            font-weight: 510;
-            color: var(--text-secondary);
-            margin-top: var(--space-1);
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: var(--space-8);
-            color: var(--text-subtle);
-            font-size: var(--font-size-sm);
-        }
-
-        /* Result messages */
-        .result {
-            margin-top: var(--space-3);
-            padding: var(--space-3) var(--space-4);
-            border-radius: var(--radius-md);
-            font-size: var(--font-size-sm);
-            display: none;
-        }
-
-        .result.success {
-            display: block;
-            background: var(--success-bg);
-            border: 1px solid rgba(16,185,129,0.3);
-            color: var(--success);
-        }
-
-        .result.error {
-            display: block;
-            background: var(--error-bg);
-            border: 1px solid rgba(239,68,68,0.3);
-            color: var(--error);
-        }
-
-        /* Code display */
-        .code-display {
-            font-family: var(--font-mono);
-            font-size: var(--font-size-sm);
-            background: var(--bg-panel);
-            border: 1px solid var(--border-standard);
-            border-radius: var(--radius-md);
-            padding: var(--space-3);
-            word-break: break-all;
-        }
-
-        /* Session header */
-        .session-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: var(--space-3);
-            flex-wrap: wrap;
-            margin-bottom: var(--space-4);
-        }
-
-        .session-info {
-            display: flex;
-            flex-direction: column;
-            gap: var(--space-1);
-        }
-
-        .session-title {
-            font-size: var(--font-size-xl);
-            font-weight: 510;
-            color: var(--text-primary);
-        }
-
-        .session-subtitle {
-            font-size: var(--font-size-sm);
-            color: var(--text-muted);
-        }
-
-        .session-token {
-            font-family: var(--font-mono);
-            font-size: var(--font-size-xs);
-            background: var(--bg-panel);
-            border: 1px solid var(--border-standard);
-            border-radius: var(--radius-sm);
-            padding: var(--space-1) var(--space-2);
-        }
-
-        /* Ship header */
-        .ship-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: var(--space-3);
-            flex-wrap: wrap;
-            margin-bottom: var(--space-4);
-        }
-
-        .ship-name { 
-            font-size: var(--font-size-2xl); 
-            font-weight: 510; 
-            line-height: 1.2; 
-        }
-
-        .ship-level {
-            font-size: var(--font-size-sm);
-            font-weight: 510;
-            padding: var(--space-1) var(--space-3);
-            border-radius: var(--radius-pill);
-            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
-            color: #fff;
-        }
-
-        /* Info row */
-        .info-row {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: var(--space-3);
-            margin-bottom: var(--space-3);
-        }
-
-        .info-item {
-            background: var(--bg-panel);
-            border: 1px solid var(--border-standard);
-            border-radius: var(--radius-md);
-            padding: var(--space-3);
-        }
-
-        .info-label {
-            font-size: var(--font-size-xs);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--text-subtle);
-        }
-
-        .info-value {
-            font-family: var(--font-mono);
-            font-size: var(--font-size-sm);
-            font-weight: 510;
-            color: var(--text-primary);
-            margin-top: var(--space-1);
-        }
-
-        /* Helpers */
-        .hidden { display: none !important; }
-        .flex { display: flex; }
-        .items-center { align-items: center; }
-        .justify-between { justify-content: space-between; }
-        .gap-2 { gap: var(--space-2); }
-        .gap-3 { gap: var(--space-3); }
-        .w-full { width: 100%; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PSS Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #08090a;
+  --panel: #0f1011;
+  --surface: #191a1b;
+  --surface-hover: #28282c;
+  --text: #f7f8f8;
+  --text-2: #d0d6e0;
+  --text-3: #8a8f98;
+  --text-4: #62666d;
+  --brand: #5e6ad2;
+  --accent: #7170ff;
+  --accent-hover: #828fff;
+  --success: #10b981;
+  --danger: #ff5555;
+  --border: rgba(255,255,255,0.08);
+  --border-subtle: rgba(255,255,255,0.05);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-feature-settings: "cv01", "ss03";
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* ---------- LOGIN ---------- */
+#loginView {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.login-card {
+  width: 100%;
+  max-width: 384px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 32px;
+  box-shadow: rgba(0,0,0,0.4) 0px 2px 4px;
+}
+.logo {
+  width: 40px; height: 40px;
+  border-radius: 8px;
+  background: var(--brand);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; margin-bottom: 24px;
+  color: #fff; font-weight: 600;
+}
+.login-card h1 {
+  font-size: 24px; font-weight: 510; letter-spacing: -0.288px;
+  margin-bottom: 6px;
+}
+.login-card .sub {
+  color: var(--text-3); font-size: 14px; margin-bottom: 28px;
+}
+.field { margin-bottom: 16px; }
+.field label {
+  display: block;
+  font-size: 13px; font-weight: 510; color: var(--text-2);
+  margin-bottom: 6px;
+}
+.field input {
+  width: 100%;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 15px;
+  padding: 10px 12px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.field input:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(94,106,210,0.15);
+}
+.field input::placeholder { color: var(--text-4); }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: inherit; font-size: 14px; font-weight: 510;
+  border-radius: 6px; border: none; cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-primary {
+  width: 100%;
+  background: var(--brand); color: #fff;
+  padding: 10px 16px;
+}
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.error-box {
+  background: rgba(255,85,85,0.08);
+  border: 1px solid rgba(255,85,85,0.25);
+  border-radius: 6px;
+  color: var(--danger);
+  font-size: 13px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  display: none;
+}
+.hidden { display: none !important; }
+
+/* ---------- DASHBOARD ---------- */
+#dashView { display: none; min-height: 100vh; }
+#dashView.active { display: block; }
+
+/* Sidebar */
+.layout { display: flex; min-height: 100vh; }
+.sidebar {
+  width: 240px; flex-shrink: 0;
+  background: var(--panel);
+  border-right: 1px solid var(--border-subtle);
+  padding: 16px 12px;
+  display: flex; flex-direction: column;
+  position: sticky; top: 0; height: 100vh;
+}
+.sidebar .brand {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; margin-bottom: 24px;
+  font-weight: 510; font-size: 15px;
+}
+.sidebar .brand .mark {
+  width: 26px; height: 26px; border-radius: 6px;
+  background: var(--brand); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 600;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 10px; border-radius: 6px;
+  color: var(--text-2); font-size: 14px; font-weight: 510;
+  cursor: pointer; border: none; background: none;
+  width: 100%; text-align: left; font-family: inherit;
+  transition: background 0.1s;
+}
+.nav-item:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+.nav-item.active { background: rgba(255,255,255,0.06); color: var(--text); }
+.nav-item svg { opacity: 0.7; }
+.sidebar .spacer { flex: 1; }
+.user-chip {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px; border-top: 1px solid var(--border-subtle);
+  margin-top: 12px;
+}
+.avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--brand); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 510; flex-shrink: 0;
+}
+.user-chip .meta { overflow: hidden; }
+.user-chip .name { font-size: 13px; font-weight: 510; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.user-chip .email { font-size: 11px; color: var(--text-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Main */
+.main { flex: 1; min-width: 0; padding: 32px 40px; max-width: 1200px; }
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 28px;
+}
+.topbar h2 { font-size: 20px; font-weight: 510; letter-spacing: -0.24px; }
+.btn-ghost {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  color: var(--text-2); font-size: 13px; padding: 7px 14px;
+}
+.btn-ghost:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+
+/* Stat cards */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
+}
+.stat-card {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+.stat-card .label { font-size: 13px; color: var(--text-3); margin-bottom: 4px; }
+.stat-card .value { font-size: 24px; font-weight: 510; letter-spacing: -0.24px; }
+.stat-card .unit { font-size: 12px; color: var(--text-4); margin-left: 4px; }
+
+/* Cards */
+.card {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 24px;
+}
+.card-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.card-header h3 { font-size: 15px; font-weight: 510; }
+.card-header .count { font-size: 12px; color: var(--text-4); }
+.card-body { padding: 6px 0; }
+
+/* Tables */
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th {
+  text-align: left; padding: 8px 18px;
+  font-size: 12px; font-weight: 510; color: var(--text-4);
+  border-bottom: 1px solid var(--border-subtle);
+  text-transform: uppercase; letter-spacing: 0.4px;
+}
+td { padding: 10px 18px; border-bottom: 1px solid rgba(255,255,255,0.03); color: var(--text-2); }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+td.strong { color: var(--text); font-weight: 510; }
+
+.pill {
+  display: inline-block;
+  font-size: 11px; font-weight: 510;
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  padding: 1px 10px;
+  color: var(--text-2);
+}
+.pill.ok { color: var(--success); border-color: rgba(16,185,129,0.3); }
+.pill.warn { color: #f2cf3b; border-color: rgba(242,207,59,0.3); }
+.pill.bad { color: var(--danger); border-color: rgba(255,85,85,0.3); }
+
+.loading { text-align: center; padding: 40px; color: var(--text-3); font-size: 14px; }
+.spinner {
+  display: inline-block; width: 24px; height: 24px;
+  border: 2px solid rgba(255,255,255,0.1);
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  margin-bottom: 10px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.center { text-align: center; }
+.sub2 { color: var(--text-3); font-size: 13px; }
+
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .main { padding: 20px 16px; }
+}
+</style>
 </head>
 <body>
-    <div class="container">
-        <h1>PSS <span>Client</span></h1>
-        <p class="caption" style="text-align: center; margin-bottom: var(--space-6);">Backend de autenticación para Pixel Starships API</p>
 
-        <!-- Login Tabs -->
-        <div class="tabs" id="loginTabs" role="tablist">
-            <button class="tab active" data-tab="device" role="tab" aria-selected="true">Device Key</button>
-            <button class="tab" data-tab="email" role="tab" aria-selected="false">Email + Pass</button>
-            <button class="tab" data-tab="steam" role="tab" aria-selected="false">Steam</button>
+<!-- ============ LOGIN ============ -->
+<div id="loginView">
+  <div class="login-card">
+    <div class="logo">◆</div>
+    <h1>PSS Dashboard</h1>
+    <p class="sub">Entra con tu cuenta de Pixel Starships</p>
+    <div class="error-box" id="loginError"></div>
+    <form id="loginForm" onsubmit="doLogin(event)">
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" autocomplete="email" required placeholder="tu@email.com">
+      </div>
+      <div class="field">
+        <label for="password">Contraseña</label>
+        <input type="password" id="password" autocomplete="current-password" required placeholder="••••••••">
+      </div>
+      <button class="btn btn-primary" id="loginBtn" type="submit">Entrar</button>
+    </form>
+  </div>
+</div>
+
+<!-- ============ DASHBOARD ============ -->
+<div id="dashView">
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand"><div class="mark">◆</div> PSS Dashboard</div>
+      <button class="nav-item active" data-page="overview" onclick="setPage('overview')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect></svg>
+        Resumen
+      </button>
+      <button class="nav-item" data-page="ship" onclick="setPage('ship')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
+        Nave
+      </button>
+      <button class="nav-item" data-page="crew" onclick="setPage('crew')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+        Tripulación
+      </button>
+      <button class="nav-item" data-page="rooms" onclick="setPage('rooms')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M9 22V12h6v10"></path></svg>
+        Habitaciones
+      </button>
+      <div class="spacer"></div>
+      <div class="user-chip">
+        <div class="avatar" id="userAvatar">•</div>
+        <div class="meta">
+          <div class="name" id="userName">—</div>
+          <div class="email" id="userEmail">—</div>
         </div>
+      </div>
+    </aside>
 
-        <!-- Device Key Panel -->
-        <div class="tab-panel active" id="panel-device" role="tabpanel">
-            <div class="card">
-                <h2>Login con Device Key</h2>
-                <p class="caption">Usa el device_key de tu instalación del juego (PlayerPrefs)</p>
-                <div class="form-group">
-                    <label for="deviceKey">Device Key (UUID)</label>
-                    <div class="input-wrapper">
-                        <input type="text" id="deviceKey" class="input-with-button" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" spellcheck="false">
-                        <button type="button" class="btn btn-ghost btn-icon" onclick="pasteDeviceKey('deviceKey')" aria-label="Pegar desde portapapeles" title="Pegar desde portapapeles">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
-                        </button>
-                    </div>
-                    <details style="margin-top: var(--space-2);">
-                        <summary class="caption" style="cursor: pointer; color: var(--text-muted);">¿Dónde está mi device_key?</summary>
-                        <pre class="code-display" style="margin-top: var(--space-3); font-size: var(--font-size-xs);">
-Windows: %AppData%\..\LocalLow\SavySoda\Pixel Starships\PlayerPrefs
-  (busca "DeviceKey" o Registro: HKEY_CURRENT_USER\Software\SavySoda\Pixel Starships)
+    <main class="main">
+      <div class="topbar">
+        <h2 id="pageTitle">Resumen</h2>
+        <button class="btn btn-ghost" onclick="doLogout()">Cerrar sesión</button>
+      </div>
 
-Linux/Steam Deck: ~/.config/unity3d/SavySoda/Pixel Starships/prefs
-  (clave: persistedSteamDeviceKey, base64 del UUID)
-
-El valor es un UUID como: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-                        </pre>
-                    </details>
-                </div>
-                <button class="btn btn-primary" onclick="loginDevice()">Entrar</button>
-            </div>
+      <!-- OVERVIEW -->
+      <div class="page" id="page-overview">
+        <div class="stats" id="ovStats">
+          <div class="stat-card"><div class="loading"><div class="spinner"></div><br>Cargando datos de la cuenta…</div></div>
         </div>
-
-        <!-- Email Panel -->
-        <div class="tab-panel" id="panel-email" role="tabpanel">
-            <div class="card">
-                <h2>Login con Email y Contraseña</h2>
-                <div class="form-group">
-                    <label for="email">Email</label>
-                    <input type="email" id="email" placeholder="tu@email.com" autocomplete="email">
-                </div>
-                <div class="form-group">
-                    <label for="password">Contraseña</label>
-                    <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
-                </div>
-                <div class="form-group">
-                    <p class="hint" style="margin: 0; color: var(--muted-foreground); font-size: 13px;">
-                        Usa el <strong>email y contraseña de tu cuenta de Pixel Starships</strong>.
-                        No necesitas nada más — como en pss-companion.
-                    </p>
-                </div>
-                <button class="btn btn-primary" onclick="loginEmail()">Entrar</button>
-            </div>
-        </div>
-
-        <!-- Steam Panel -->
-        <div class="tab-panel" id="panel-steam" role="tabpanel">
-            <div class="card">
-                <h2>Login con Steam</h2>
-                <p class="caption">Obtén el ticket con GetAuthSessionTicket de Steamworks</p>
-                <div class="form-group">
-                    <label for="steamTicket">Steam Ticket</label>
-                    <input type="text" id="steamTicket" placeholder="Ticket de sesión de Steam" autocomplete="off" spellcheck="false">
-                </div>
-                <div class="form-group">
-                    <label for="steamDeviceKey">Device Key (opcional)</label>
-                    <div class="input-wrapper">
-                        <input type="text" id="steamDeviceKey" class="input-with-button" placeholder="Se genera uno si vacío" autocomplete="off" spellcheck="false">
-                        <button type="button" class="btn btn-ghost btn-icon" onclick="pasteDeviceKey('steamDeviceKey')" aria-label="Pegar desde portapapeles" title="Pegar desde portapapeles">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
-                        </button>
-                    </div>
-                </div>
-                <button class="btn btn-primary" onclick="loginSteam()">Entrar con Steam</button>
-            </div>
-        </div>
-
-        <!-- Checksum Debug -->
         <div class="card">
-            <div class="section-header">
-                <h2>Generar Checksum (Debug)</h2>
-            </div>
-            <div class="form-group">
-                <label for="checksumDeviceKey">Device Key</label>
-                <input type="text" id="checksumDeviceKey" placeholder="UUID del dispositivo" autocomplete="off" spellcheck="false">
-            </div>
-            <div class="form-group">
-                <label for="checksumDeviceType">Device Type</label>
-                <select id="checksumDeviceType">
-                    <option value="DeviceTypeAndroid">Android</option>
-                    <option value="DeviceTypeSteam">Steam</option>
-                    <option value="DeviceTypeGeneric">Generic</option>
-                </select>
-            </div>
-            <button class="btn btn-ghost" onclick="generateChecksum()">Generar</button>
-            <div class="result" id="checksumResult"></div>
+          <div class="card-header"><h3>Cuenta</h3></div>
+          <div class="card-body">
+            <table>
+              <tbody id="ovAccount"></tbody>
+            </table>
+          </div>
         </div>
-
-        <!-- Session Card (after login) -->
-        <div class="card hidden" id="sessionCard">
-            <div class="session-header">
-                <div class="session-info">
-                    <span class="session-title" id="sessionUserId">Usuario</span>
-                    <span class="session-subtitle" id="sessionLastLogin">Último login</span>
-                </div>
-                <div class="session-token" id="sessionToken">token</div>
-            </div>
-            <div class="flex gap-2">
-                <button id="loadShipBtn" class="btn btn-primary flex-1" onclick="loadShipInfo()">Ver mi Nave</button>
-                <button class="btn btn-danger" style="width: 44px; padding: 0;" onclick="logout()" aria-label="Cerrar sesión" title="Cerrar sesión">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                </button>
-            </div>
+        <div class="card">
+          <div class="card-header"><h3>Nave</h3></div>
+          <div class="card-body">
+            <table>
+              <tbody id="ovShip"></tbody>
+            </table>
+          </div>
         </div>
+      </div>
 
-        <!-- Ship View -->
-        <div class="card hidden" id="shipCard">
-            <div class="ship-header">
-                <div>
-                    <h2 class="ship-name" id="shipName">Cargando...</h2>
-                    <span class="ship-level" id="shipLevel">Nivel 1</span>
-                </div>
-                <span class="status status-default" id="shipStatus">Estado</span>
-            </div>
-
-            <div class="stat-grid">
-                <div class="stat-card">
-                    <div class="stat-label">HP</div>
-                    <div class="stat-value hp" id="statHp">0 / 0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Escudo</div>
-                    <div class="stat-value shield" id="statShield">0 / 0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Poder</div>
-                    <div class="stat-value power" id="statPower">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Sistema</div>
-                    <div class="stat-value" id="statSystem">-</div>
-                </div>
-            </div>
-
-            <div class="sub-tabs" id="shipSubTabs" role="tablist">
-                <button class="sub-tab active" data-subtab="overview" role="tab" aria-selected="true">Resumen</button>
-                <button class="sub-tab" data-subtab="characters" role="tab" aria-selected="false">Tripulación</button>
-                <button class="sub-tab" data-subtab="rooms" role="tab" aria-selected="false">Habitaciones</button>
-                <button class="sub-tab" data-subtab="items" role="tab" aria-selected="false">Items</button>
-            </div>
-
-            <div class="sub-panel active" id="sub-overview" role="tabpanel">
-                <div class="info-row">
-                    <div class="info-item">
-                        <div class="info-label">Ship ID</div>
-                        <div class="info-value" id="siShipId">-</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Design ID</div>
-                        <div class="info-value" id="siDesignId">-</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Skin ID</div>
-                        <div class="info-value" id="siSkinId">-</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Skin Opacity</div>
-                        <div class="info-value" id="siSkinOpacity">-</div>
-                    </div>
-                </div>
-                <div class="info-row">
-                    <div class="info-item" style="grid-column: span 2;">
-                        <div class="info-label">Sticker</div>
-                        <div class="info-value" id="siSticker" style="font-family: inherit; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">-</div>
-                    </div>
-                    <div class="info-item" style="grid-column: span 2;">
-                        <div class="info-label">Tags</div>
-                        <div class="info-value" id="siTags" style="font-family: inherit; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">-</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="sub-panel" id="sub-characters" role="tabpanel">
-                <div class="section-header">
-                    <h3>Tripulación</h3>
-                    <span class="badge badge-success" id="charCount">0</span>
-                </div>
-                <div class="list" id="charactersList"></div>
-            </div>
-
-            <div class="sub-panel" id="sub-rooms" role="tabpanel">
-                <div class="section-header">
-                    <h3>Habitaciones</h3>
-                    <span class="badge badge-success" id="roomCount">0</span>
-                </div>
-                <div class="list" id="roomsList"></div>
-            </div>
-
-            <div class="sub-panel" id="sub-items" role="tabpanel">
-                <div class="section-header">
-                    <h3>Items</h3>
-                    <span class="badge" id="itemCount">0</span>
-                </div>
-                <div class="list" id="itemsList"></div>
-            </div>
-
-            <button class="btn btn-danger" onclick="logout()" style="margin-top: var(--space-4);">Cerrar Sesión</button>
+      <!-- SHIP -->
+      <div class="page hidden" id="page-ship">
+        <div class="stats" id="shipStats">
+          <div class="stat-card"><div class="loading"><div class="spinner"></div><br>Cargando nave…</div></div>
         </div>
-    </div>
+        <div class="card">
+          <div class="card-header"><h3>Detalles</h3></div>
+          <div class="card-body">
+            <table>
+              <tbody id="shipDetails"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
 
-    <script>
-        const API_BASE = 'http://localhost:8000';
-        let currentSessionToken = null;
+      <!-- CREW -->
+      <div class="page hidden" id="page-crew">
+        <div class="card">
+          <div class="card-header"><h3>Tripulación</h3><span class="count" id="crewCount"></span></div>
+          <div class="card-body">
+            <table>
+              <thead><tr><th>Personaje</th><th>Nivel</th><th>Vida</th><th>Escudo</th><th>Habitación</th></tr></thead>
+              <tbody id="crewBody">
+                <tr><td colspan="5" class="loading center"><div class="spinner"></div><br>Cargando tripulación…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
 
-        // Tabs
-        document.querySelectorAll('.tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                document.querySelectorAll('.tab').forEach(t => {
-                    t.classList.remove('active');
-                    t.setAttribute('aria-selected', 'false');
-                });
-                document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-                tab.classList.add('active');
-                tab.setAttribute('aria-selected', 'true');
-                document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
-            });
-        });
+      <!-- ROOMS -->
+      <div class="page hidden" id="page-rooms">
+        <div class="card">
+          <div class="card-header"><h3>Habitaciones</h3><span class="count" id="roomCount"></span></div>
+          <div class="card-body">
+            <table>
+              <thead><tr><th>Habitación</th><th>Nivel</th><th>Vida</th><th>Energía</th><th>Tripulantes</th></tr></thead>
+              <tbody id="roomBody">
+                <tr><td colspan="5" class="loading center"><div class="spinner"></div><br>Cargando habitaciones…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
 
-        // Ship sub-tabs
-        document.querySelectorAll('.sub-tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                document.querySelectorAll('.sub-tab').forEach(t => {
-                    t.classList.remove('active');
-                    t.setAttribute('aria-selected', 'false');
-                });
-                document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
-                tab.classList.add('active');
-                tab.setAttribute('aria-selected', 'true');
-                document.getElementById('sub-' + tab.dataset.subtab).classList.add('active');
-            });
-        });
+<script>
+let session = null;
+let shipData = null;
+let userData = null;
 
-        function $(id) { return document.getElementById(id); }
+function $(id) { return document.getElementById(id); }
 
-        function showResult(el, success, message) {
-            el.className = 'result ' + (success ? 'success' : 'error');
-            el.textContent = message;
-        }
+async function api(endpoint, body) {
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+  return data;
+}
 
-        function showSession(login) {
-            currentSessionToken = login.session_token;
-            $('sessionCard').classList.remove('hidden');
-            $('shipCard').classList.add('hidden');
-            $('sessionUserId').textContent = 'User ID: ' + login.user_id;
-            $('sessionLastLogin').textContent = 'Último login: ' + (login.previous_last_login_date || 'N/A');
-            $('sessionToken').textContent = login.access_token;
-            // Login exitoso → cargar la nave automáticamente
-            loadShip();
-        }
+/* ---------- LOGIN ---------- */
+async function doLogin(ev) {
+  ev.preventDefault();
+  const email = $('email').value.trim();
+  const password = $('password').value;
+  const btn = $('loginBtn');
+  const errBox = $('loginError');
+  errBox.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Entrando…';
+  try {
+    const data = await api('/auth/login', { email, password });
+    session = data.session_token;
+    localStorage.setItem('pss_session', session);
+    enterDashboard(data.user || {});
+  } catch (e) {
+    errBox.textContent = e.message;
+    errBox.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Entrar';
+  }
+}
 
-        async function apiRequest(endpoint, body) {
-            const res = await fetch(API_BASE + endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
-            const data = await res.json();
-            if (!res.ok) {
-                throw new Error(data.detail || data.message || `HTTP ${res.status}`);
-            }
-            return data;
-        }
+async function doLogout() {
+  if (session) {
+    try { await api('/auth/logout', { session_token: session }); } catch (e) {}
+  }
+  localStorage.removeItem('pss_session');
+  session = null; shipData = null; userData = null;
+  $('dashView').classList.remove('active');
+  $('loginView').style.display = 'flex';
+  $('password').value = '';
+}
 
-        async function loginDevice() {
-            const deviceKey = $('deviceKey').value.trim();
-            if (!deviceKey) return alert('Ingresa un Device Key');
-            const btn = event.target;
-            btn.disabled = true; btn.textContent = 'Entrando...';
-            try {
-                const data = await apiRequest('/auth/device-login', { device_key: deviceKey });
-                if (data.success) {
-                    showSession(data);
-                } else if (data.reason === 'linked_account') {
-                    // Cuenta verificada vinculada: redirigir a email+pass con contexto
-                    const email = data.email || '';
-                    if (email) $('email').value = email;
-                    // Cambiar a la pestaña de email
-                    document.querySelector('[data-tab="email"]').click();
-                    alert(`Tu cuenta (${email}) está vinculada.\n\nIngresa tu CONTRASEÑA para entrar — el email ya está puesto.`);
-                }
-            } catch (e) {
-                alert('Error: ' + e.message);
-            } finally {
-                btn.disabled = false; btn.textContent = 'Entrar';
-            }
-        }
+/* ---------- DASHBOARD ---------- */
+function enterDashboard(user) {
+  $('loginView').style.display = 'none';
+  $('dashView').classList.add('active');
+  if (user.name) $('userName').textContent = user.name;
+  if (user.email) $('userEmail').textContent = user.email;
+  if (user.name) $('userAvatar').textContent = user.name.trim()[0] || '•';
+  loadUser();
+  loadShip();
+}
 
-        async function loginEmail() {
-            const email = $('email').value.trim();
-            const password = $('password').value;
-            if (!email) return alert('Ingresa tu email');
-            if (!password) return alert('Ingresa tu contraseña');
-            const btn = event.target;
-            btn.disabled = true; btn.textContent = 'Entrando...';
-            try {
-                // Flujo pss-companion (3 pasos): el backend genera su propio
-                // deviceKey interno — el usuario NO necesita el suyo.
-                const data = await apiRequest('/auth/email-password', { email, password });
-                if (data.success) showSession(data);
-            } catch (e) {
-                alert('Error: ' + e.message);
-            } finally {
-                btn.disabled = false; btn.textContent = 'Entrar';
-            }
-        }
+function setPage(name) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === name));
+  ['overview','ship','crew','rooms'].forEach(p => $('page-' + p).classList.toggle('hidden', p !== name));
+  const titles = { overview: 'Resumen', ship: 'Nave', crew: 'Tripulación', rooms: 'Habitaciones' };
+  $('pageTitle').textContent = titles[name] || name;
+}
 
-        async function loginSteam() {
-            const ticket = $('steamTicket').value.trim();
-            const deviceKey = $('steamDeviceKey').value.trim() || undefined;
-            if (!ticket) return alert('Ingresa el ticket de Steam');
-            const btn = event.target;
-            btn.disabled = true; btn.textContent = 'Entrando...';
-            try {
-                const data = await apiRequest('/auth/steam-login', { ticket, device_key: deviceKey });
-                if (data.success) showSession(data);
-            } catch (e) {
-                alert('Error: ' + e.message);
-            } finally {
-                btn.disabled = false; btn.textContent = 'Entrar con Steam';
-            }
-        }
+async function loadUser() {
+  try {
+    const data = await api('/user/me', { session_token: session });
+    userData = data.user || {};
+    if (userData.name) { $('userName').textContent = userData.name; $('userAvatar').textContent = userData.name.trim()[0] || '•'; }
+    if (userData.email) $('userEmail').textContent = userData.email;
+    renderAll();
+  } catch (e) { console.warn('user/me:', e.message); }
+}
 
-        async function generateChecksum() {
-            const deviceKey = $('checksumDeviceKey').value.trim();
-            const deviceType = $('checksumDeviceType').value;
-            if (!deviceKey) return alert('Ingresa un Device Key');
-            const btn = event.target;
-            btn.disabled = true; btn.textContent = 'Generando...';
-            try {
-                const data = await apiRequest('/auth/checksum', { device_key: deviceKey, device_type: deviceType });
-                $('checksumResult').innerHTML = `
-                    <strong>Checksum:</strong>
-                    <div class="code-display" style="margin-top: var(--space-2);">${data.checksum}</div>
-                    <div class="caption" style="margin-top: var(--space-2);">
-                        checksum_key: ${data.checksum_key}<br>
-                        savy_checksum: ${data.savy_checksum}
-                    </div>
-                    <button class="btn btn-ghost btn-sm" style="margin-top: var(--space-3); width: auto;" onclick="copyToClipboard('${data.checksum}')">Copiar Checksum</button>
-                `;
-                showResult($('checksumResult'), true, '');
-            } catch (e) {
-                showResult($('checksumResult'), false, e.message);
-            } finally {
-                btn.disabled = false; btn.textContent = 'Generar';
-            }
-        }
+async function loadShip() {
+  try {
+    shipData = await api('/ship/info', { session_token: session });
+    renderAll();
+  } catch (e) {
+    $('ovStats').innerHTML = `<div class="stat-card" style="grid-column: 1/-1;"><div class="error-box" style="display:block; margin:0;">${e.message}</div></div>`;
+  }
+}
 
-        async function loadShipInfo(fromAuto) {
-            if (!currentSessionToken) return alert('No hay sesión activa');
-            const btn = document.getElementById('loadShipBtn');
-            if (btn) { btn.disabled = true; btn.textContent = 'Cargando...'; }
-            try {
-                const data = await apiRequest('/ship/info', { session_token: currentSessionToken });
-                if (data.success) {
-                    showShip(data);
-                } else {
-                    throw new Error(data.detail || 'Error cargando nave');
-                }
-            } catch (e) {
-                if (!fromAuto) alert('Error: ' + e.message);
-                else $('shipCard').classList.add('hidden');
-            } finally {
-                if (btn) { btn.disabled = false; btn.textContent = 'Ver mi Nave'; }
-            }
-        }
+function stat(label, value, unit) {
+  return `<div class="stat-card"><div class="label">${label}</div><div class="value">${value ?? '—'}${unit ? `<span class="unit">${unit}</span>` : ''}</div></div>`;
+}
 
-        // Alias usado por showSession para el auto-load tras login
-        function loadShip() { return loadShipInfo(true); }
+function row(k, v) { return `<tr><td class="sub2">${k}</td><td class="strong">${v ?? '—'}</td></tr>`; }
 
-        function getStatusClass(status) {
-            const s = (status || '').toLowerCase();
-            if (s.includes('dock') || s.includes('idle') || s.includes('park')) return 'status-docked';
-            if (s.includes('travel') || s.includes('warp') || s.includes('move')) return 'status-traveling';
-            if (s.includes('battle') || s.includes('combat') || s.includes('fight')) return 'status-battle';
-            return 'status-default';
-        }
+function statusPill(status) {
+  const s = (status || '').toLowerCase();
+  let cls = '';
+  if (s.includes('defend')) { cls = 'ok'; }
+  else if (s.includes('travel') || s.includes('warp') || s.includes('explor')) { cls = 'warn'; }
+  else if (s.includes('attack') || s.includes('battle')) { cls = 'bad'; }
+  return `<span class="pill ${cls}">● ${status || 'Desconocido'}</span>`;
+}
 
-        function showShip(data) {
-            const ship = data.ship;
-            const chars = data.characters || [];
-            const rooms = data.rooms || [];
+function renderOverview() {
+  if (!userData && !shipData) return;
+  const u = userData || {};
+  const s = shipData?.ship;
+  $('ovStats').innerHTML =
+    stat('Créditos', u.credits) +
+    stat('Trofeos', u.trophy) +
+    stat('Nivel de nave', s?.ship_level) +
+    stat('Power Score', s?.power_score);
+  $('ovAccount').innerHTML =
+    row('Usuario', u.name) +
+    row('Email', u.email) +
+    row('Tipo de cuenta', u.user_type) +
+    row('ID', u.user_id);
+  $('ovShip').innerHTML =
+    row('Nombre', s?.ship_name) +
+    row('Estado', statusPill(s?.ship_status)) +
+    row('Casco (HP)', s?.hp) +
+    row('Escudo', s?.shield) +
+    row('Tripulantes', s ? `${s.characters_count} personajes` : null) +
+    row('Habitaciones', s ? `${s.rooms_count}` : null) +
+    row('Objetos', s ? `${s.items_count}` : null);
+}
 
-            $('sessionCard').classList.add('hidden');
-            $('shipCard').classList.remove('hidden');
+function renderShip() {
+  const s = shipData?.ship;
+  if (!s) return;
+  $('shipStats').innerHTML =
+    stat('Nivel', s.ship_level) +
+    stat('Power Score', s.power_score) +
+    stat('Casco (HP)', s.hp) +
+    stat('Estado', statusPill(s.ship_status));
+  $('shipDetails').innerHTML =
+    row('Ship ID', s.ship_id) +
+    row('Nombre', s.ship_name) +
+    row('Diseño', '#' + s.ship_design_id) +
+    row('Sistema estelar', s.star_system_id) +
+    row('Próximo sistema', s.next_star_system_id) +
+    row('Posición', s.center_x !== undefined ? `(${s.center_x}, ${s.center_y})` : null);
+}
 
-            // Header
-            $('shipName').textContent = ship.ship_name || 'Sin nombre';
-            $('shipLevel').textContent = 'Nivel ' + ship.ship_level;
-            $('shipStatus').textContent = ship.ship_status || 'Desconocido';
-            $('shipStatus').className = 'status ' + getStatusClass(ship.ship_status);
+function renderCrew() {
+  const chars = shipData?.characters || [];
+  $('crewCount').textContent = `${chars.length} personajes`;
+  if (!chars.length) {
+    $('crewBody').innerHTML = '<tr><td colspan="5" class="center sub2">Sin personajes</td></tr>';
+    return;
+  }
+  $('crewBody').innerHTML = chars.map(c => `
+    <tr>
+      <td class="strong">${c.name || 'Personaje #' + c.character_id}</td>
+      <td>${c.level}</td>
+      <td class="mono">${Math.round(c.hp)}/${Math.round(c.max_hp)}</td>
+      <td class="mono">${c.shield}</td>
+      <td class="sub2">#${c.room_id}</td>
+    </tr>`).join('');
+}
 
-            // Stats
-            $('statHp').textContent = Math.round(ship.hp) + ' / ' + Math.round(ship.hp);
-            $('statShield').textContent = ship.shield + ' / ' + ship.shield;
-            $('statPower').textContent = ship.power_score.toLocaleString();
-            $('statSystem').textContent = ship.star_system_id || '-';
+function renderRooms() {
+  const rooms = shipData?.rooms || [];
+  $('roomCount').textContent = `${rooms.length} habitaciones`;
+  if (!rooms.length) {
+    $('roomBody').innerHTML = '<tr><td colspan="5" class="center sub2">Sin habitaciones</td></tr>';
+    return;
+  }
+  $('roomBody').innerHTML = rooms.map(r => `
+    <tr>
+      <td class="strong">Habitación #${r.room_id}</td>
+      <td>${r.level}</td>
+      <td class="mono">${Math.round(r.hp)}/${Math.round(r.max_hp)}</td>
+      <td class="mono">${r.power}/${r.max_power}</td>
+      <td>${(r.character_ids || []).length}</td>
+    </tr>`).join('');
+}
 
-            // Overview
-            $('siShipId').textContent = ship.ship_id;
-            $('siDesignId').textContent = ship.ship_design_id;
-            $('siSkinId').textContent = ship.skin_item_design_id || 'Ninguno';
-            $('siSkinOpacity').textContent = ship.skin_opacity_value ? ship.skin_opacity_value.toFixed(2) : '1.00';
-            $('siSticker').textContent = ship.sticker_string || 'Ninguno';
-            $('siTags').textContent = ship.tags || 'Ninguno';
+function renderAll() {
+  renderOverview();
+  renderShip();
+  renderCrew();
+  renderRooms();
+}
 
-            // Characters
-            $('charCount').textContent = chars.length;
-            const charsList = $('charactersList');
-            if (chars.length === 0) {
-                charsList.innerHTML = '<div class="empty-state">Sin tripulantes</div>';
-            } else {
-                charsList.innerHTML = chars.map(c => `
-                    <div class="list-item">
-                        <div class="list-item-header">
-                            <span class="list-item-name">${c.name || 'Sin nombre'}</span>
-                            <span class="list-item-level">Nv. ${c.level}</span>
-                        </div>
-                        <div class="item-stats">
-                            <div class="stat-pair"><span class="label">HP</span><span class="value">${Math.round(c.hp)}/${Math.round(c.max_hp)}</span></div>
-                            <div class="stat-pair"><span class="label">Escudo</span><span class="value">${c.shield}/${c.max_shield}</span></div>
-                            <div class="stat-pair"><span class="label">Raza</span><span class="value">${c.race_id}</span></div>
-                            <div class="stat-pair"><span class="label">Arma</span><span class="value">${c.weapon_design_id || '-'}</span></div>
-                            <div class="stat-pair"><span class="label">Habilidad</span><span class="value">${c.ability_design_id || '-'}</span></div>
-                            <div class="stat-pair"><span class="label">Habitación</span><span class="value">${c.room_id || '-'}</span></div>
-                        </div>
-                    </div>
-                `).join('');
-            }
-
-            // Rooms
-            $('roomCount').textContent = rooms.length;
-            const roomsList = $('roomsList');
-            if (rooms.length === 0) {
-                roomsList.innerHTML = '<div class="empty-state">Sin habitaciones</div>';
-            } else {
-                roomsList.innerHTML = rooms.map(r => `
-                    <div class="list-item">
-                        <div class="list-item-header">
-                            <span class="list-item-name">Habitación ${r.room_id}</span>
-                            <span class="list-item-level">Nv. ${r.level}</span>
-                        </div>
-                        <div class="item-stats">
-                            <div class="stat-pair"><span class="label">Design ID</span><span class="value">${r.room_design_id}</span></div>
-                            <div class="stat-pair"><span class="label">HP</span><span class="value">${Math.round(r.hp)}/${Math.round(r.max_hp)}</span></div>
-                            <div class="stat-pair"><span class="label">Energía</span><span class="value">${r.power}/${r.max_power}</span></div>
-                            <div class="stat-pair"><span class="label">Capacidad</span><span class="value">${r.capacity}</span></div>
-                            <div class="stat-pair"><span class="label">Tripulantes</span><span class="value">${r.character_ids?.length || 0}</span></div>
-                        </div>
-                    </div>
-                `).join('');
-            }
-
-            // Items
-            $('itemCount').textContent = '0';
-            $('itemsList').innerHTML = '<div class="empty-state">Items no cargados en esta vista</div>';
-        }
-
-        function copyToClipboard(text) {
-            navigator.clipboard.writeText(text).then(() => {
-                alert('Copiado al portapapeles');
-            });
-        }
-
-        // Load saved device_key on init
-        function loadSavedDeviceKey() {
-            const saved = localStorage.getItem('pss_device_key');
-            if (saved) {
-                $('deviceKey').value = saved;
-                $('steamDeviceKey').value = saved;
-                $('checksumDeviceKey').value = saved;
-            }
-        }
-
-        // Paste from clipboard
-        async function pasteDeviceKey(targetId = 'deviceKey') {
-            try {
-                const text = await navigator.clipboard.readText();
-                const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-                if (uuidRegex.test(text.trim())) {
-                    $(targetId).value = text.trim();
-                    localStorage.setItem('pss_device_key', text.trim());
-                } else {
-                    alert('El portapapeles no contiene un UUID válido');
-                }
-            } catch (e) {
-                alert('No se pudo leer el portapapeles (requiere HTTPS o localhost)');
-            }
-        }
-
-        // Init
-        loadSavedDeviceKey();
-    </script>
+/* ---------- INIT: sesión persistida ---------- */
+(async function init() {
+  const saved = localStorage.getItem('pss_session');
+  if (!saved) return;
+  try {
+    const data = await api('/user/me', { session_token: saved });
+    session = saved;
+    userData = data.user || {};
+    enterDashboard(userData);
+  } catch (e) {
+    localStorage.removeItem('pss_session');
+  }
+})();
+</script>
 </body>
 </html>

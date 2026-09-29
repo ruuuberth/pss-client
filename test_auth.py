@@ -1,12 +1,11 @@
 """Smoke test end-to-end del backend de auth de pss_client.
 
-- Verifica la fórmula del checksum contra DeviceLogin17 (API real).
-- No usa credenciales del usuario: device_key aleatorio (cuenta desechable)
-  para validar el handshake; el login a la cuenta real se hace con el
-  device_key propio del usuario.
+Valida el PASO 1 del flujo de login (DeviceLogin17 con deviceKey desechable)
+contra la API real — sin credenciales del usuario. El flujo completo
+(email+password) se prueba desde el frontend con las credenciales reales.
 
 Uso:
-    cd /home/naowh/Work/pss-client && python test_auth.py
+    cd /home/naowh/Work/pss-client && uv run python test_auth.py
 """
 
 import asyncio
@@ -21,29 +20,29 @@ from pss_client.transport import PssApiError
 
 
 async def main() -> None:
-    # 1) Test unitario de la fórmula
+    # 1) Test unitario de la fórmula del checksum
     dk = str(uuid4())
     now = datetime.now(timezone.utc)
     checksum = create_checksum(dk, now, "DeviceTypeAndroid")
     assert len(checksum) == 32, checksum
     print(f"[unit] create_checksum OK -> {checksum}")
 
-    # 2) Test contra la API real (cuenta nueva desechable — SOLO validación de handshake)
-    auth = PssAuth()
-    try:
-        login = await auth.device_login(device_key=dk, client_datetime=now)
-        print(f"[api ] LOGIN OK  user_id={login.user_id} token={login.access_token[:8]}...")
-        print(f"[api ] previous_last_login={login.previous_last_login_date}")
-    except PssApiError as e:
-        print(f"[api ] FALLO: {e}")
-        raise
-    finally:
-        await auth.close()
+    # 2) Test del PASO 1: DeviceLogin17 con deviceKey desechable
+    #    (debe devolver un UserLogin de cuenta web temporal)
+    async with PssAuth() as auth:
+        try:
+            node = await auth._device_login_raw(dk)
+            user_id = node.attrib.get("UserId")
+            token = node.attrib.get("accessToken", "")
+            assert user_id and token, dict(node.attrib)
+            print(f"[paso1] DeviceLogin17 OK -> UserId={user_id} token={token[:8]}...")
+        except PssApiError as e:
+            print(f"[paso1] FALLO: {e}")
+            raise
 
-    print("\nBackend de autenticación verificado.")
+    print("\nBackend de autenticación verificado (paso 1 del flujo email+password).")
     print(f"  CHECKSUM_KEY  = {CHECKSUM_KEY!r}")
     print(f"  SAVY_CHECKSUM = {SAVY_CHECKSUM!r}")
-    print("\nPara entrar a TU cuenta: PssAuth().device_login(device_key='<tu device_key del juego>')")
 
 
 if __name__ == "__main__":
