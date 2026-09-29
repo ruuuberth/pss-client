@@ -32,7 +32,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 from uuid import uuid4
 
-from .transport import PssApiError, PssHttpClient, Session
+from .transport import PssApiError, PssHttpClient
 
 _log = logging.getLogger("pss_client.auth")
 
@@ -87,37 +87,6 @@ def create_checksum(
     return hashlib.md5(payload.encode("utf-8")).hexdigest()
 
 
-def create_authorize_checksum(
-    email: str,
-    password: str,
-    client_datetime: datetime,
-    checksum_key: str = CHECKSUM_KEY,
-    savy_checksum: str = SAVY_CHECKSUM,
-) -> str:
-    """Checksum para UserEmailPasswordAuthorize (LoginExistingAccount en el juego).
-
-    Reconstruido del desensamblado de LoginExistingAccount (RVA 0x36F9180):
-    array[0]=email, array[1]=password, array[2]=timestamp, array[3]=?
-    -> String.Concat(array) -> SavysodaEncryptString = md5(concat + SavyChecksum).
-    La 4ª posición del array era otro captured-local; las variantes plausibles
-    son (email, password, timestamp) y (email, password, timestamp, deviceKey).
-    """
-    timestamp = _to_pss_timestamp(client_datetime)
-    payload = f"{email}{password}{timestamp}{checksum_key}{savy_checksum}"
-    return hashlib.md5(payload.encode("utf-8")).hexdigest()
-
-
-def _empty_device_info() -> dict[str, Any]:
-    return {
-        "ClientBuild": 0,
-        "ClientVersion": "",
-        "DeviceName": "",
-        "Locale": "",
-        "OSBuild": 0,
-        "OsVersion": "",
-    }
-
-
 def _web_device_info() -> dict[str, Any]:
     """UserDeviceInfo emulando el cliente web del juego (como pss-companion).
 
@@ -133,45 +102,6 @@ def _web_device_info() -> dict[str, Any]:
         "ClientBuild": "17180",
         "ClientVersion": "0.999.43",
     }
-
-
-def _parse_user_login(resp_root: ET.Element) -> UserLogin:
-    # La respuesta real tiene <UserLogin> como RAÍZ del XML, no como hijo.
-    # Aceptar ambas formas.
-    node = resp_root if resp_root.tag == "UserLogin" else resp_root.find(".//UserLogin")
-    if node is None:
-        raise PssApiError("La respuesta no contiene <UserLogin>")
-    token = node.attrib.get("accessToken") or ""
-    user_id = int(node.attrib.get("UserId", "0"))
-
-    # Caso cuenta Verified: errorCode 400 + email en errorMessage.
-    # La API reconoce el device pero exige autenticar con el método vinculado
-    # (email/password o Steam). Devolvemos el contexto para que el frontend
-    # pueda redirigir al flujo correcto.
-    error_code = node.attrib.get("errorCode")
-    error_msg = node.attrib.get("errorMessage")
-    if error_code and not token:
-        user_node = node.find(".//User")
-        user_email = user_node.attrib.get("Email") if user_node is not None else None
-        raise PssApiError(
-            json.dumps({
-                "reason": "linked_account",
-                "error_code": error_code,
-                "message": error_msg,
-                "email": user_email,
-                "user_id": int(user_node.attrib.get("Id", "0")) if user_node is not None else 0,
-                "hint": "Cuenta verificada: usa email+password o SteamLogin con este device_key.",
-            })
-        )
-
-    if not token or not user_id:
-        raise PssApiError(f"UserLogin sin token/UserId: {node.attrib}")
-    return UserLogin(
-        access_token=token,
-        user_id=user_id,
-        previous_last_login_date=node.attrib.get("PreviousLastLoginDate"),
-        raw=dict(node.attrib),
-    )
 
 
 class PssAuth:

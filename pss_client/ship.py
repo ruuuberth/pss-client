@@ -195,33 +195,3 @@ class PssShipService:
         if ship_node is None:
             raise PssApiError("No se encontró nave en la respuesta")
         return Ship.from_xml(ship_node)
-
-    async def inspect_ship(
-        self,
-        access_token: str,
-        user_id: int,
-    ) -> tuple[Ship, dict]:
-        """GET ShipService/InspectShip2 - Inspecciona nave (devuelve Ship + User)."""
-        resp = await self._http.request(
-            "ShipService/InspectShip2",
-            method="GET",
-            response_root_tag="ShipService",
-            accessToken=access_token,
-            userId=user_id,
-        )
-        ship_node = resp.root.find(".//Ship")
-        user_node = resp.root.find(".//User")
-        if ship_node is None:
-            raise PssApiError("No se encontró nave en InspectShip")
-        ship = Ship.from_xml(ship_node)
-        user_data = dict(user_node.attrib) if user_node is not None else {}
-        return ship, user_data
-
-
-def parse_ship_xml(xml_string: str) -> Ship:
-    """Parsea XML de nave directamente (útil para debug/cassettes)."""
-    root = ET.fromstring(xml_string)
-    ship_node = root.find(".//Ship")
-    if ship_node is None:
-        raise PssApiError("No hay nodo Ship en el XML")
-    return Ship.from_xml(ship_node)

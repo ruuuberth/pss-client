@@ -12,10 +12,9 @@ from __future__ import annotations
 
 import logging
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Optional
-from urllib.parse import quote
 
 import aiohttp
 
@@ -33,16 +32,6 @@ class PssApiError(Exception):
 class PssResponse:
     root: ET.Element
     raw: str
-
-
-@dataclass
-class Session:
-    """Estado de autenticación de una cuenta."""
-
-    access_token: str
-    user_id: int
-    previous_last_login_date: Optional[str] = None
-    raw: dict[str, str] = field(default_factory=dict)
 
 
 def _serialize_params(params: dict[str, Any]) -> dict[str, str]:
@@ -133,17 +122,3 @@ class PssHttpClient:
                     f"Tag esperado {response_root_tag!r} no encontrado; raíz={root.tag!r}"
                 )
         return PssResponse(root=root, raw=data)
-
-    async def get_production_server(self, device_type: str, language_key: str) -> str:
-        """SettingService/GetLatestVersion3 -> ProductionServer vigente."""
-        resp = await self.request(
-            "SettingService/GetLatestVersion3",
-            method="GET",
-            response_root_tag="SettingService",
-            deviceType=device_type,
-            languageKey=language_key,
-        )
-        setting = resp.root.find(".//Setting")
-        if setting is None or not setting.attrib.get("ProductionServer"):
-            raise PssApiError("No se pudo determinar el ProductionServer")
-        return setting.attrib["ProductionServer"]
