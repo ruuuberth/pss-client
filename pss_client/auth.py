@@ -37,9 +37,10 @@ from .transport import PssApiError, PssHttpClient
 _log = logging.getLogger("pss_client.auth")
 
 # --- Secretos del cliente (extraídos de GameAssembly.so vía IL2CPP) ---
+# Prioridad: variables de entorno (GitHub Secrets / .env) → fallback embebido.
 
-CHECKSUM_KEY: str = "5343"
-SAVY_CHECKSUM: str = "Savvy!s0d@"
+CHECKSUM_KEY: str = os.environ.get("PSS_CHECKSUM_KEY", "5343")
+SAVY_CHECKSUM: str = os.environ.get("PSS_SAVY_CHECKSUM", "Savvy!s0d@")
 
 # --- Device types (de pssapi.enums.DeviceType, generado desde el juego) ---
 
