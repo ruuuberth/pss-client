@@ -20,6 +20,7 @@ from pss_client.auth import PssAuth, UserLogin
 from pss_client.transport import PssApiError, PssHttpClient
 from pss_client.ship import PssShipService
 from pss_client.game import PssGameService, create_action_checksum
+from pss_client.designs import get_design_catalog
 
 # --- Logging: archivo + consola ---------------------------------------------- #
 LOG_FILE = os.path.join(os.path.dirname(__file__), "..", "pss-client.log")
@@ -216,6 +217,7 @@ async def get_ship_info(req: SessionRequest):
             "characters": [
                 {
                     "character_id": c.character_id,
+                    "character_design_id": c.character_design_id,
                     "name": c.name,
                     "level": c.level,
                     "hp": c.hp,
@@ -351,6 +353,24 @@ async def game_collect_daily_reward(req: SessionRequest):
         return result
     except PssApiError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        await http.close()
+
+
+@app.post("/game/designs")
+async def game_designs(req: SessionRequest):
+    """Catálogo de diseños: {coleccion: {id: nombre}} (cacheado en el proceso)."""
+    login = _require_session(req.session_token)
+    http = PssHttpClient()
+    try:
+        catalog = await get_design_catalog(http, login.access_token)
+        # serializar a {coleccion: {"id": nombre}} (JSON necesita keys str)
+        return {"success": True, "designs": {
+            coll: {str(k): v for k, v in mapping.items()}
+            for coll, mapping in catalog.items()
+        }}
+    except PssApiError as e:
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         await http.close()
 

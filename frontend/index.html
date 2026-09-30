@@ -417,6 +417,7 @@ td.strong { color: var(--text); font-weight: 510; }
 let session = null;
 let shipData = null;
 let userData = null;
+let designNames = null;  // {room_designs: {id: nombre}, ...}
 
 function $(id) { return document.getElementById(id); }
 
@@ -429,6 +430,28 @@ async function api(endpoint, body) {
   const data = await res.json();
   if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
   return data;
+}
+
+/* Resuelve un ID contra el catálogo de diseños; cachea en localStorage */
+async function loadDesigns() {
+  if (designNames) return designNames;
+  try {
+    const cached = localStorage.getItem('pss_designs');
+    if (cached) { designNames = JSON.parse(cached); return designNames; }
+  } catch (e) {}
+  try {
+    const data = await api('/game/designs', { session_token: session });
+    designNames = data.designs || null;
+    if (designNames) {
+      try { localStorage.setItem('pss_designs', JSON.stringify(designNames)); } catch (e) {}
+    }
+  } catch (e) { console.warn('designs:', e.message); }
+  return designNames;
+}
+
+function designName(coll, id) {
+  if (!designNames || !designNames[coll]) return null;
+  return designNames[coll][String(id)] || null;
 }
 
 /* ---------- LOGIN ---------- */
@@ -471,6 +494,7 @@ function enterDashboard(user) {
   if (user.name) $('userName').textContent = user.name;
   if (user.email) $('userEmail').textContent = user.email;
   if (user.name) $('userAvatar').textContent = user.name.trim()[0] || '•';
+  loadDesigns().then(() => renderAll());
   loadUser();
   loadShip();
 }
@@ -567,7 +591,7 @@ function renderCrew() {
   }
   $('crewBody').innerHTML = chars.map(c => `
     <tr>
-      <td class="strong">${c.name || 'Personaje #' + c.character_id}</td>
+      <td class="strong">${c.name || designName('character_designs', c.character_id) || 'Personaje #'+c.character_id}</td>
       <td>${c.level}</td>
       <td class="mono">${Math.round(c.hp)}/${Math.round(c.max_hp)}</td>
       <td class="mono">${c.shield}</td>
@@ -584,7 +608,7 @@ function renderRooms() {
   }
   $('roomBody').innerHTML = rooms.map(r => `
     <tr>
-      <td class="strong">Habitación #${r.room_id}</td>
+      <td class="strong">${designName('room_designs', r.room_design_id) || 'Habitación #'+r.room_id}</td>
       <td>${r.level}</td>
       <td class="mono">${Math.round(r.hp)}/${Math.round(r.max_hp)}</td>
       <td class="mono">${r.power}/${r.max_power}</td>
@@ -606,7 +630,7 @@ async function loadTasks() {
     }
     $('taskBody').innerHTML = tasks.map(t => `
       <tr>
-        <td class="strong">Misión #${t.task_design_id}</td>
+        <td class="strong">${designName('task_designs', t.task_design_id) || 'Misión #'+t.task_design_id}</td>
         <td class="mono">${Math.round(t.progress_value)}</td>
         <td>${t.collected
           ? '<span class="pill ok">● Completada</span>'
