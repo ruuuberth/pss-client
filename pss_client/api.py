@@ -19,6 +19,7 @@ import os
 from pss_client.auth import PssAuth, UserLogin
 from pss_client.transport import PssApiError, PssHttpClient
 from pss_client.ship import PssShipService
+from pss_client.game import PssGameService, create_action_checksum
 
 # --- Logging: archivo + consola ---------------------------------------------- #
 LOG_FILE = os.path.join(os.path.dirname(__file__), "..", "pss-client.log")
@@ -256,6 +257,102 @@ async def get_ship_info(req: SessionRequest):
     except Exception as e:
         logger.exception("[ship/info] error interno")
         raise HTTPException(status_code=500, detail=f"Error interno: {e}")
+
+
+# --- Game: consultas y acciones para JUGAR ---------------------------------- #
+
+@app.post("/game/tasks")
+async def game_tasks(req: SessionRequest):
+    """Misiones/tareas diarias del usuario."""
+    login = _require_session(req.session_token)
+    http = PssHttpClient()
+    try:
+        game = PssGameService(http)
+        tasks = await game.list_tasks(login.access_token)
+        return {"success": True, "tasks": [
+            {"task_id": t.task_id, "task_design_id": t.task_design_id,
+             "progress_value": t.progress_value, "collected": t.collected}
+            for t in tasks
+        ]}
+    except PssApiError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        await http.close()
+
+
+@app.post("/game/researches")
+async def game_researches(req: SessionRequest):
+    """Investigaciones en curso del usuario."""
+    login = _require_session(req.session_token)
+    http = PssHttpClient()
+    try:
+        game = PssGameService(http)
+        researches = await game.list_researches(login.access_token)
+        return {"success": True, "researches": [
+            {"research_id": r.research_id, "design_id": r.research_design_id}
+            for r in researches
+        ]}
+    except PssApiError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        await http.close()
+
+
+@app.post("/game/star-systems")
+async def game_star_systems(req: SessionRequest):
+    """Sistemas estelares visitados por el usuario."""
+    login = _require_session(req.session_token)
+    http = PssHttpClient()
+    try:
+        game = PssGameService(http)
+        systems = await game.list_star_systems(login.access_token)
+        return {"success": True, "star_systems": [
+            {"star_system_id": s.star_system_id} for s in systems
+        ]}
+    except PssApiError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        await http.close()
+
+
+class CollectResourcesRequest(BaseModel):
+    session_token: str
+    room_id: int
+    amount: int
+
+
+@app.post("/game/collect-resources")
+async def game_collect_resources(req: CollectResourcesRequest):
+    """Recolecta minerales de una habitación de la nave."""
+    login = _require_session(req.session_token)
+    http = PssHttpClient()
+    try:
+        game = PssGameService(http)
+        result = await game.collect_room_resources(
+            access_token=login.access_token,
+            room_id=req.room_id,
+            amount=req.amount,
+        )
+        return result
+    except PssApiError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        await http.close()
+
+
+@app.post("/game/collect-daily-reward")
+async def game_collect_daily_reward(req: SessionRequest):
+    """Reclama la recompensa diaria."""
+    login = _require_session(req.session_token)
+    http = PssHttpClient()
+    try:
+        game = PssGameService(http)
+        result = await game.collect_daily_reward(login.access_token)
+        return result
+    except PssApiError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        await http.close()
 
 
 if __name__ == "__main__":

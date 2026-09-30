@@ -304,6 +304,10 @@ td.strong { color: var(--text); font-weight: 510; }
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M9 22V12h6v10"></path></svg>
         Habitaciones
       </button>
+      <button class="nav-item" data-page="tasks" onclick="setPage('tasks')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+        Misiones
+      </button>
       <div class="spacer"></div>
       <div class="user-chip">
         <div class="avatar" id="userAvatar">•</div>
@@ -379,9 +383,27 @@ td.strong { color: var(--text); font-weight: 510; }
           <div class="card-header"><h3>Habitaciones</h3><span class="count" id="roomCount"></span></div>
           <div class="card-body">
             <table>
-              <thead><tr><th>Habitación</th><th>Nivel</th><th>Vida</th><th>Energía</th><th>Tripulantes</th></tr></thead>
+              <thead><tr><th>Habitación</th><th>Nivel</th><th>Vida</th><th>Energía</th><th>Tripulantes</th><th></th></tr></thead>
               <tbody id="roomBody">
-                <tr><td colspan="5" class="loading center"><div class="spinner"></div><br>Cargando habitaciones…</td></tr>
+                <tr><td colspan="6" class="loading center"><div class="spinner"></div><br>Cargando habitaciones…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TASKS / MISIONES -->
+      <div class="page hidden" id="page-tasks">
+        <div class="card">
+          <div class="card-header">
+            <h3>Misiones diarias</h3>
+            <span class="count" id="taskCount"></span>
+          </div>
+          <div class="card-body">
+            <table>
+              <thead><tr><th>Misión</th><th>Progreso</th><th>Estado</th></tr></thead>
+              <tbody id="taskBody">
+                <tr><td colspan="3" class="loading center"><div class="spinner"></div><br>Cargando misiones…</td></tr>
               </tbody>
             </table>
           </div>
@@ -455,9 +477,10 @@ function enterDashboard(user) {
 
 function setPage(name) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === name));
-  ['overview','ship','crew','rooms'].forEach(p => $('page-' + p).classList.toggle('hidden', p !== name));
-  const titles = { overview: 'Resumen', ship: 'Nave', crew: 'Tripulación', rooms: 'Habitaciones' };
+  ['overview','ship','crew','rooms','tasks'].forEach(p => $('page-' + p).classList.toggle('hidden', p !== name));
+  const titles = { overview: 'Resumen', ship: 'Nave', crew: 'Tripulación', rooms: 'Habitaciones', tasks: 'Misiones' };
   $('pageTitle').textContent = titles[name] || name;
+  if (name === 'tasks') loadTasks();  // lazy: misiones al entrar a la pestaña
 }
 
 async function loadUser() {
@@ -556,7 +579,7 @@ function renderRooms() {
   const rooms = shipData?.rooms || [];
   $('roomCount').textContent = `${rooms.length} habitaciones`;
   if (!rooms.length) {
-    $('roomBody').innerHTML = '<tr><td colspan="5" class="center sub2">Sin habitaciones</td></tr>';
+    $('roomBody').innerHTML = '<tr><td colspan="6" class="center sub2">Sin habitaciones</td></tr>';
     return;
   }
   $('roomBody').innerHTML = rooms.map(r => `
@@ -566,7 +589,43 @@ function renderRooms() {
       <td class="mono">${Math.round(r.hp)}/${Math.round(r.max_hp)}</td>
       <td class="mono">${r.power}/${r.max_power}</td>
       <td>${(r.character_ids || []).length}</td>
+      <td><button class="btn btn-ghost" style="font-size:12px; padding:4px 10px;" onclick="collectResources(${r.room_id})">Recolectar</button></td>
     </tr>`).join('');
+}
+
+/* ---------- GAME: misiones y acciones ---------- */
+async function loadTasks() {
+  if (!session) return;
+  try {
+    const data = await api('/game/tasks', { session_token: session });
+    const tasks = data.tasks || [];
+    $('taskCount').textContent = `${tasks.length} misiones`;
+    if (!tasks.length) {
+      $('taskBody').innerHTML = '<tr><td colspan="3" class="center sub2">Sin misiones activas</td></tr>';
+      return;
+    }
+    $('taskBody').innerHTML = tasks.map(t => `
+      <tr>
+        <td class="strong">Misión #${t.task_design_id}</td>
+        <td class="mono">${Math.round(t.progress_value)}</td>
+        <td>${t.collected
+          ? '<span class="pill ok">● Completada</span>'
+          : '<span class="pill">● En progreso</span>'}</td>
+      </tr>`).join('');
+  } catch (e) {
+    $('taskBody').innerHTML = `<tr><td colspan="3" class="center sub2">Error: ${e.message}</td></tr>`;
+  }
+}
+
+async function collectResources(roomId) {
+  if (!confirm(`¿Recolectar recursos de la habitación #${roomId}?`)) return;
+  try {
+    const data = await api('/game/collect-resources',
+      { session_token: session, room_id: roomId, amount: 100 });
+    alert('✓ Recursos recolectados');
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
 }
 
 function renderAll() {
