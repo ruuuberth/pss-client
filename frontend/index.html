@@ -449,6 +449,11 @@ async function loadDesigns() {
   return designNames;
 }
 
+function roomDesignIdOf(roomId) {
+  const r = (shipData?.rooms || []).find(r => r.room_id === roomId);
+  return r ? r.room_design_id : null;
+}
+
 function designName(coll, id) {
   if (!designNames || !designNames[coll]) return null;
   return designNames[coll][String(id)] || null;
@@ -591,11 +596,12 @@ function renderCrew() {
   }
   $('crewBody').innerHTML = chars.map(c => `
     <tr>
-      <td class="strong">${c.name || designName('character_designs', c.character_id) || 'Personaje #'+c.character_id}</td>
+      <td class="strong">${c.name || designName('character_designs', c.character_design_id) || 'Personaje #'+c.character_id}
+        ${c.name && designName('character_designs', c.character_design_id) ? '<br><span class="sub2" style="font-weight:400">'+designName('character_designs', c.character_design_id)+'</span>' : ''}</td>
       <td>${c.level}</td>
       <td class="mono">${Math.round(c.hp)}/${Math.round(c.max_hp)}</td>
       <td class="mono">${c.shield}</td>
-      <td class="sub2">#${c.room_id}</td>
+      <td class="sub2">${designName('room_designs', roomDesignIdOf(c.room_id)) || '#'+c.room_id}</td>
     </tr>`).join('');
 }
 
