@@ -192,6 +192,35 @@ class PssGameService:
         _log.info("[collect-resources] roomId=%s amount=%s OK", room_id, amount)
         return {"success": True, "raw": resp.raw[:500]}
 
+    async def send_heartbeat(self, access_token: str) -> dict:
+        """POST UserService/HeartBeat4 — mantiene la cuenta "Online".
+
+        El juego lo envía periódicamente (vía WebSocket heartbeatSocket con
+        fallback REST a HeartBeat4). El XML del Ship cambia ShipStatus a
+        Online mientras el heartbeat esté activo (enum: Online=0, Offline=1,
+        Attacking=2, Defending=3).
+
+        URL del juego: /UserService/HeartBeat4?clientDateTime=&checksum=&accessToken=
+        checksum genérico: md5(clientDateTime + checksum_key + savy_checksum)
+        """
+        cdt = _now_ts()
+        checksum = create_action_checksum()
+        resp = await self._http.request(
+            "UserService/HeartBeat4",
+            method="POST",
+            response_root_tag="HeartBeat",
+            clientDateTime=cdt,
+            checksum=checksum,
+            accessToken=access_token,
+        )
+        node = resp.root
+        err = node.attrib.get("errorMessage")
+        if err:
+            _log.warning("[heartbeat] respuesta: %r", err)
+            return {"success": False, "message": err}
+        _log.info("[heartbeat] OK — cuenta Online")
+        return {"success": True, "raw": resp.raw[:300]}
+
     async def collect_daily_reward(self, access_token: str) -> dict:
         """GET UserService/CollectDailyReward2 — recompensa diaria."""
         cdt = _now_ts()

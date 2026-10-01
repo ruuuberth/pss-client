@@ -59,6 +59,43 @@ async def health():
 
 # Estado global de sesiones autenticadas (en producción usar Redis/DB)
 active_sessions: dict[str, UserLogin] = {}
+_heartbeat_tasks: dict[str, asyncio.Task] = {}  # session_token -> task
+
+
+async def _heartbeat_loop(session_token: str, interval: int = 60):
+    """Envía HeartBeat4 cada `interval` segundos mientras la sesión viva.
+
+    Replica el heartbeat del juego (UserManager.CheckHeartbeat -> POST
+    UserService/HeartBeat4) para mantener la cuenta marcada Online en el
+    servidor de PSS (ShipStatus Online en el XML de la nave).
+    """
+    login = active_sessions.get(session_token)
+    if not login:
+        return
+    logger.info("[heartbeat] iniciado para user %s (cada %ss)", login.user_id, interval)
+    try:
+        while True:
+            await asyncio.sleep(interval)
+            login = active_sessions.get(session_token)
+            if not login:
+                break  # sesión cerrada
+            http = PssHttpClient()
+            try:
+                game = PssGameService(http)
+                await game.send_heartbeat(login.access_token)
+            except Exception as exc:
+                logger.warning("[heartbeat] fallo para user %s: %r", login.user_id, exc)
+            finally:
+                await http.close()
+    finally:
+        _heartbeat_tasks.pop(session_token, None)
+        logger.info("[heartbeat] detenido para session %s…", session_token[:20])
+
+
+def _start_heartbeat(session_token: str):
+    if session_token not in _heartbeat_tasks:
+        _heartbeat_tasks[session_token] = asyncio.create_task(
+            _heartbeat_loop(session_token))
 
 
 # --- Auth: ÚNICO método email+password -------------------------------------- #
@@ -84,7 +121,9 @@ async def login(req: LoginRequest):
             )
             session_token = f"sess_{login.user_id}_{login.access_token[:16]}"
             active_sessions[session_token] = login
-            logger.info("[login] LOGIN OK user_id=%s session=%s", login.user_id, session_token)
+            _start_heartbeat(session_token)
+            logger.info("[login] LOGIN OK user_id=%s session=%s (heartbeat ON)",
+                        login.user_id, session_token)
             # Datos del usuario para el dashboard (nombre, créditos, trofeos...)
             user_info = _extract_user_info(login)
             return {
@@ -348,6 +387,21 @@ async def game_collect_daily_reward(req: SessionRequest):
     try:
         game = PssGameService(http)
         result = await game.collect_daily_reward(login.access_token)
+        return result
+    except PssApiError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        await http.close()
+
+
+@app.post("/game/heartbeat")
+async def game_heartbeat(req: SessionRequest):
+    """Envía un heartbeat manual (marca la cuenta Online ahora mismo)."""
+    login = _require_session(req.session_token)
+    http = PssHttpClient()
+    try:
+        game = PssGameService(http)
+        result = await game.send_heartbeat(login.access_token)
         return result
     except PssApiError as e:
         raise HTTPException(status_code=400, detail=str(e))
