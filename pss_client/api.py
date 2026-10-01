@@ -147,7 +147,7 @@ async def user_me(req: SessionRequest):
     try:
         resp = await http.request(
             "UserService/GetCurrentUser",
-            method="POST",
+            method="GET",
             response_root_tag="GetCurrentUser",
             accessToken=login.access_token,
         )

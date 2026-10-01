@@ -289,6 +289,12 @@ class PssAuth:
                 "error_code": node.attrib.get("errorCode"),
                 "message": node.attrib.get("errorMessage"),
             }))
+        # Mezclar los atributos del hijo <User> (Name, Email, Credits, Trophy...)
+        # en el propio nodo, para que raw=dict(node.attrib) del caller los vea.
+        user_child = node.find(".//User")
+        if user_child is not None:
+            for k, v in user_child.attrib.items():
+                node.attrib.setdefault(k, v)
         return node
 
     # ------------------------------------------------------------------ #
