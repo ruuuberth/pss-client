@@ -33,17 +33,17 @@ class Character:
         return cls(
             character_id=int(node.attrib.get("CharacterId", 0)),
             character_design_id=int(node.attrib.get("CharacterDesignId", 0)),
-            name=node.attrib.get("Name", ""),
-            hp=float(node.attrib.get("HP", 0)),
-            max_hp=float(node.attrib.get("MaxHP", 0)),
-            shield=int(node.attrib.get("Shield", 0)),
-            max_shield=int(node.attrib.get("MaxShield", 0)),
-            room_id=int(node.attrib.get("RoomId", 0)),
+            name=node.attrib.get("CharacterName", ""),
+            hp=float(node.attrib.get("BattleCharacterHp", 0) or 0),
+            max_hp=0,  # el max HP real viene del CharacterDesign (catálogo)
+            shield=0,
+            max_shield=0,
+            room_id=int(node.attrib.get("DesignatedRoomId", 0)),
             level=int(node.attrib.get("Level", 0)),
             race_id=int(node.attrib.get("RaceId", 0)),
             weapon_design_id=int(node.attrib.get("WeaponDesignId", 0)),
             ability_design_id=int(node.attrib.get("AbilityDesignId", 0)),
-            current_room_id=int(node.attrib.get("CurrentRoomId", 0)),
+            current_room_id=int(node.attrib.get("CurrentRoomId", 0) or node.attrib.get("DesignatedRoomId", 0)),
             sprite_design_id=int(node.attrib.get("SpriteDesignId", 0)),
             raw=dict(node.attrib),
         )
@@ -53,30 +53,25 @@ class Character:
 class Room:
     room_id: int
     room_design_id: int
-    level: int
-    hp: float
-    max_hp: float
-    power: int
-    max_power: int
-    capacity: int
+    room_status: str
+    assigned_power: int
+    system_power: int
+    current_capacity: int
     characters: List[int] = field(default_factory=list)
     raw: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_xml(cls, node: ET.Element) -> "Room":
-        char_ids = []
-        chars = node.find("Characters")
-        if chars is not None:
-            char_ids = [int(c.attrib.get("CharacterId", 0)) for c in chars.findall("Character")]
+        # los personajes asignados vienen anidados como <Character RoomId=...>
+        char_ids = [int(c.attrib.get("CharacterId", 0))
+                    for c in node.findall(".//Character")]
         return cls(
             room_id=int(node.attrib.get("RoomId", 0)),
             room_design_id=int(node.attrib.get("RoomDesignId", 0)),
-            level=int(node.attrib.get("Level", 0)),
-            hp=float(node.attrib.get("HP", 0)),
-            max_hp=float(node.attrib.get("MaxHP", 0)),
-            power=int(node.attrib.get("Power", 0)),
-            max_power=int(node.attrib.get("MaxPower", 0)),
-            capacity=int(node.attrib.get("Capacity", 0)),
+            room_status=node.attrib.get("RoomStatus", ""),
+            assigned_power=int(node.attrib.get("AssignedPower", 0) or 0),
+            system_power=int(node.attrib.get("SystemPower", 0) or 0),
+            current_capacity=int(node.attrib.get("CurrentCapacity", 0) or 0),
             characters=char_ids,
             raw=dict(node.attrib),
         )
@@ -143,7 +138,7 @@ class Ship:
             ship_design_id=int(node.attrib.get("ShipDesignId", 0)),
             ship_status=node.attrib.get("ShipStatus", ""),
             user_id=int(node.attrib.get("UserId", 0)),
-            hp=float(node.attrib.get("HP", 0)),
+            hp=float(node.attrib.get("Hp", 0)),
             shield=int(node.attrib.get("Shield", 0)),
             power_score=int(node.attrib.get("PowerScore", 0)),
             star_system_id=int(node.attrib.get("StarSystemId", 0)),

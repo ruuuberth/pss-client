@@ -234,12 +234,10 @@ async def get_ship_info(req: SessionRequest):
                 {
                     "room_id": r.room_id,
                     "room_design_id": r.room_design_id,
-                    "level": r.level,
-                    "hp": r.hp,
-                    "max_hp": r.max_hp,
-                    "power": r.power,
-                    "max_power": r.max_power,
-                    "capacity": r.capacity,
+                    "room_status": r.room_status,
+                    "assigned_power": r.assigned_power,
+                    "system_power": r.system_power,
+                    "current_capacity": r.current_capacity,
                     "character_ids": r.characters,
                 }
                 for r in ship.rooms

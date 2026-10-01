@@ -368,9 +368,9 @@ td.strong { color: var(--text); font-weight: 510; }
           <div class="card-header"><h3>Tripulación</h3><span class="count" id="crewCount"></span></div>
           <div class="card-body">
             <table>
-              <thead><tr><th>Personaje</th><th>Nivel</th><th>Vida</th><th>Escudo</th><th>Habitación</th></tr></thead>
+              <thead><tr><th>Personaje</th><th>Nivel</th><th>Habitación</th></tr></thead>
               <tbody id="crewBody">
-                <tr><td colspan="5" class="loading center"><div class="spinner"></div><br>Cargando tripulación…</td></tr>
+                <tr><td colspan="3" class="loading center"><div class="spinner"></div><br>Cargando tripulación…</td></tr>
               </tbody>
             </table>
           </div>
@@ -383,9 +383,9 @@ td.strong { color: var(--text); font-weight: 510; }
           <div class="card-header"><h3>Habitaciones</h3><span class="count" id="roomCount"></span></div>
           <div class="card-body">
             <table>
-              <thead><tr><th>Habitación</th><th>Nivel</th><th>Vida</th><th>Energía</th><th>Tripulantes</th><th></th></tr></thead>
+              <thead><tr><th>Habitación</th><th>Energía</th><th>Capacidad</th><th>Tripulantes</th><th></th></tr></thead>
               <tbody id="roomBody">
-                <tr><td colspan="6" class="loading center"><div class="spinner"></div><br>Cargando habitaciones…</td></tr>
+                <tr><td colspan="5" class="loading center"><div class="spinner"></div><br>Cargando habitaciones…</td></tr>
               </tbody>
             </table>
           </div>
@@ -592,7 +592,7 @@ function renderCrew() {
   const chars = shipData?.characters || [];
   $('crewCount').textContent = `${chars.length} personajes`;
   if (!chars.length) {
-    $('crewBody').innerHTML = '<tr><td colspan="5" class="center sub2">Sin personajes</td></tr>';
+    $('crewBody').innerHTML = '<tr><td colspan="3" class="center sub2">Sin personajes</td></tr>';
     return;
   }
   $('crewBody').innerHTML = chars.map(c => `
@@ -600,8 +600,6 @@ function renderCrew() {
       <td class="strong">${c.name || designName('character_designs', c.character_design_id) || 'Personaje #'+c.character_id}
         ${c.name && designName('character_designs', c.character_design_id) ? '<br><span class="sub2" style="font-weight:400">'+designName('character_designs', c.character_design_id)+'</span>' : ''}</td>
       <td>${c.level}</td>
-      <td class="mono">${Math.round(c.hp)}/${Math.round(c.max_hp)}</td>
-      <td class="mono">${c.shield}</td>
       <td class="sub2">${designName('room_designs', roomDesignIdOf(c.room_id)) || '#'+c.room_id}</td>
     </tr>`).join('');
 }
@@ -610,15 +608,15 @@ function renderRooms() {
   const rooms = shipData?.rooms || [];
   $('roomCount').textContent = `${rooms.length} habitaciones`;
   if (!rooms.length) {
-    $('roomBody').innerHTML = '<tr><td colspan="6" class="center sub2">Sin habitaciones</td></tr>';
+    $('roomBody').innerHTML = '<tr><td colspan="5" class="center sub2">Sin habitaciones</td></tr>';
     return;
   }
   $('roomBody').innerHTML = rooms.map(r => `
     <tr>
-      <td class="strong">${designName('room_designs', r.room_design_id) || 'Habitación #'+r.room_id}</td>
-      <td>${r.level}</td>
-      <td class="mono">${Math.round(r.hp)}/${Math.round(r.max_hp)}</td>
-      <td class="mono">${r.power}/${r.max_power}</td>
+      <td class="strong">${designName('room_designs', r.room_design_id) || 'Habitación #'+r.room_id}
+        ${r.room_status ? ' <span class="pill" style="margin-left:6px">'+r.room_status+'</span>' : ''}</td>
+      <td class="mono">${r.system_power || r.assigned_power || 0}</td>
+      <td class="mono">${r.current_capacity || 0}</td>
       <td>${(r.character_ids || []).length}</td>
       <td><button class="btn btn-ghost" style="font-size:12px; padding:4px 10px;" onclick="collectResources(${r.room_id})">Recolectar</button></td>
     </tr>`).join('');
