@@ -200,11 +200,24 @@ class PssGameService:
         Online mientras el heartbeat esté activo (enum: Online=0, Offline=1,
         Attacking=2, Defending=3).
 
-        URL del juego: /UserService/HeartBeat4?clientDateTime=&checksum=&accessToken=
-        checksum genérico: md5(clientDateTime + checksum_key + savy_checksum)
+        Fórmula del checksum (desensamblada de CheckHeartbeatInvoke, RVA
+        0x3727460 / CheckSumPasswordWithString 0x36F54D0 + TimeCheckSumForDate
+        0x36F5530, verificada contra la API 2026-10-01):
+
+            checksum = accessToken[0] + accessToken[1] + accessToken[3]  (UTF-16)
+                     + clientDateTime.second * clientDateTime.minute
+
+        Con checksum válido la API responde "You have been idle for too long."
+        (errorCode=1) si el token lleva inactivo demasiado, o éxito silencioso.
         """
-        cdt = _now_ts()
-        checksum = create_action_checksum()
+        now = datetime.now(timezone.utc)
+        cdt = now.strftime("%Y-%m-%dT%H:%M:%S")
+        # CheckSumPasswordWithString: chars 0, 1 y 3 del accessToken (UTF-16)
+        cs_password = ord(access_token[0]) + ord(access_token[1]) + ord(access_token[3])
+        # TimeCheckSumForDate: second × minute
+        cs_time = now.second * now.minute
+        checksum = cs_password + cs_time
+
         resp = await self._http.request(
             "UserService/HeartBeat4",
             method="POST",
@@ -216,7 +229,8 @@ class PssGameService:
         node = resp.root
         err = node.attrib.get("errorMessage")
         if err:
-            _log.warning("[heartbeat] respuesta: %r", err)
+            _log.warning("[heartbeat] respuesta: %r (errorCode=%s)",
+                         err, node.attrib.get("errorCode"))
             return {"success": False, "message": err}
         _log.info("[heartbeat] OK — cuenta Online")
         return {"success": True, "raw": resp.raw[:300]}
