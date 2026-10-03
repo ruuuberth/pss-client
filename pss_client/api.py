@@ -230,8 +230,41 @@ async def get_ship_info(req: SessionRequest):
             user_id=login.user_id,
         )
         await http.close()
+
+        # Join con el catálogo: identificar las shield rooms del usuario.
+        # El escudo no es un valor persistente del servidor (Shield=0 en el
+        # XML siempre); lo computa el motor de batalla desde estas rooms.
+        # (diagnóstico 2026-10-03, ver issue #1)
+        shield_rooms = []
+        try:
+            dhttp = PssHttpClient()
+            catalog = await get_design_catalog(dhttp, login.access_token)
+            room_names = catalog.get("room_designs", {})
+            room_types = catalog.get("room_types", {})
+            room_stats = catalog.get("room_stats", {})
+            for r in ship.rooms:
+                if room_types.get(r.room_design_id) == "Shield":
+                    stats = room_stats.get(r.room_design_id, {})
+                    shield_rooms.append({
+                        "room_id": r.room_id,
+                        "room_design_id": r.room_design_id,
+                        "name": room_names.get(r.room_design_id,
+                                               f"RoomDesign {r.room_design_id}"),
+                        "status": r.room_status,
+                        "max_system_power": stats.get("max_system_power", ""),
+                        "capacity": stats.get("capacity", ""),
+                    })
+            await dhttp.close()
+        except Exception as exc:
+            logger.warning("[ship/info] join de shield rooms falló: %r", exc)
         return {
             "success": True,
+            "shield_info": {
+                "note": ("El escudo es un estado de batalla: se computa en tiempo "
+                         "real desde las salas de escudo durante el combate. El 0 "
+                         "del XML es el restante tras la última batalla."),
+                "rooms": shield_rooms,
+            },
             "ship": {
                 "ship_id": ship.ship_id,
                 "ship_name": ship.ship_name,

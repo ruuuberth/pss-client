@@ -140,6 +140,20 @@ async def get_design_catalog(http: PssHttpClient, access_token: str) -> dict[str
     _DESIGN_CACHE.update({
         "room_designs": _collect(static_root, "RoomDesign", "RoomDesignId",
                                   ("RoomName",)),
+        # atributos extra de RoomDesign para joins del dashboard:
+        # tipo (Shield, Reactor, ...) y stats
+        "room_types": _collect(static_root, "RoomDesign", "RoomDesignId",
+                               ("RoomType",)),
+        "room_stats": {
+            int(rd.attrib.get("RoomDesignId", 0)): {
+                "type": rd.attrib.get("RoomType", ""),
+                "max_system_power": rd.attrib.get("MaxSystemPower", ""),
+                "capacity": rd.attrib.get("Capacity", ""),
+                "level": rd.attrib.get("Level", ""),
+                "category": rd.attrib.get("CategoryType", ""),
+            }
+            for rd in static_root.findall(".//RoomDesign")
+        },
         "character_designs": _collect(static_root, "CharacterDesign",
                                        "CharacterDesignId",
                                        ("CharacterDesignName",)),
