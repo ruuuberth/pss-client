@@ -30,7 +30,7 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Optional
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from .transport import PssApiError, PssHttpClient
 
@@ -160,7 +160,11 @@ class PssAuth:
              → UserLogin de la cuenta REAL + refreshToken
           3. (si trae refreshToken) DeviceLogin17 con refreshToken → token owner
         """
-        device_key = device_key or str(uuid4())
+        if not device_key:
+            # deviceKey DETERMINISTA por email: mismo email → mismo "dispositivo"
+            # → el paso 1 reutiliza la cuenta web temporal ya creada en vez de
+            # crear una nueva por cada login (error 445: "too many accounts").
+            device_key = str(uuid5(NAMESPACE_URL, f"pss-client:{email}"))
         _log.info("[email-password-flow] inicio email=%r device_key=%r", email, device_key)
 
         # PASO 1: DeviceLogin17 con deviceKey nuevo (cuenta web temporal)
