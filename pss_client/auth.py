@@ -129,6 +129,14 @@ def _save_token(email: str, device_key: str, refresh_token: str,
     _log.info("[tokens] refreshToken persistido para %s", email)
 
 
+def _email_for_user(user_id: int) -> Optional[str]:
+    """Email cuyo token persistido corresponde a user_id (para renovar sesiones)."""
+    for email, entry in _load_tokens().items():
+        if int(entry.get("user_id") or 0) == user_id:
+            return email
+    return None
+
+
 def _web_device_info() -> dict[str, Any]:
     """UserDeviceInfo emulando el cliente web del juego (como pss-companion).
 
@@ -339,6 +347,26 @@ class PssAuth:
         return UserLogin(
             access_token=fallback_token,
             user_id=user_id,
+            previous_last_login_date=node.attrib.get("PreviousLastLoginDate"),
+            raw=dict(node.attrib),
+        )
+
+    async def refresh_access_token(self, device_key: str, refresh_token: str) -> Optional[UserLogin]:
+        """Renueva el accessToken con el refreshToken (los accessToken caducan ~1h).
+
+        Es el mismo canje del paso 3 del login (DeviceLogin17 con RefreshToken).
+        El juego real lo hace en segundo plano: cuando el accessToken expira,
+        pide otro con el RefreshToken de larga duración. Devuelve None si el
+        refresh ya no sirve (toca login completo con email+password).
+        """
+        node = await self._device_login_raw(device_key, refresh_token=refresh_token)
+        at = node.attrib.get("accessToken") or ""
+        uid = int(node.attrib.get("UserId", "0") or 0)
+        if not at or not uid:
+            return None
+        return UserLogin(
+            access_token=at,
+            user_id=uid,
             previous_last_login_date=node.attrib.get("PreviousLastLoginDate"),
             raw=dict(node.attrib),
         )

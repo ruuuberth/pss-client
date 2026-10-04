@@ -62,6 +62,26 @@ active_sessions: dict[str, UserLogin] = {}
 _heartbeat_tasks: dict[str, asyncio.Task] = {}  # session_token -> task
 
 
+def _immunity_info(immunity_date: Optional[str]) -> dict:
+    """Interpreta ImmunityDate: el 'escudo de protección' PvP del juego.
+
+    El juego lo llama "immunity shields" ("You can use immunity shields to
+    prevent your ship from being attacked while you are away"). Las fechas
+    de la API vienen en UTC (verificado: UpdateDate coincide con la hora de
+    las peticiones).
+    """
+    from datetime import datetime, timezone
+    if not immunity_date:
+        return {"active": False, "until": None, "raw": None}
+    active = False
+    try:
+        dt = datetime.strptime(immunity_date[:19], "%Y-%m-%dT%H:%M:%S")
+        active = dt.replace(tzinfo=timezone.utc) > datetime.now(timezone.utc)
+    except ValueError:
+        pass
+    return {"active": active, "until": immunity_date, "raw": immunity_date}
+
+
 def _restore_sessions() -> int:
     """Restaura las sesiones persistidas en ~/.pss-client/tokens.json.
 
@@ -94,6 +114,44 @@ async def _on_startup() -> None:
         logger.info("[startup] heartbeat reactivado para %d sesión(es)", n)
 
 
+async def _refresh_session_token(session_token: str) -> bool:
+    """Renueva el accessToken caducado de una sesión con su refreshToken.
+
+    Los accessToken de PSS duran ~1h (verificado 2026-10-04: la sesión
+    funcionó 51 min y luego "Failed to authorize access token."). El juego
+    pide uno nuevo con el RefreshToken persistido — mismo canje del paso 3.
+    El session_token del navegador NO cambia (se actualiza el token interno).
+    """
+    login = active_sessions.get(session_token)
+    if not login:
+        return False
+    from pss_client.auth import PssAuth, _email_for_user, _load_tokens, _save_token
+    email = _email_for_user(login.user_id)
+    if not email:
+        logger.warning("[refresh] sin refreshToken persistido para user %s", login.user_id)
+        return False
+    entry = _load_tokens().get(email) or {}
+    refresh = entry.get("refresh_token") or ""
+    if not refresh:
+        return False
+    auth = PssAuth()
+    try:
+        new_login = await auth.refresh_access_token(
+            entry.get("device_key") or "", refresh)
+        if new_login and new_login.user_id == login.user_id:
+            login.access_token = new_login.access_token
+            _save_token(email, entry.get("device_key") or "", refresh,
+                        new_login.user_id, access_token=new_login.access_token)
+            logger.info("[refresh] accessToken renovado para user %s", login.user_id)
+            return True
+        logger.warning("[refresh] el refreshToken no devolvió token para user %s", login.user_id)
+    except Exception as exc:
+        logger.warning("[refresh] fallo renovando token de user %s: %r", login.user_id, exc)
+    finally:
+        await auth.close()
+    return False
+
+
 async def _heartbeat_loop(session_token: str, interval: int = 60):
     """Envía HeartBeat4 cada `interval` segundos mientras la sesión viva.
 
@@ -116,7 +174,16 @@ async def _heartbeat_loop(session_token: str, interval: int = 60):
                 game = PssGameService(http)
                 await game.send_heartbeat(login.access_token)
             except Exception as exc:
-                logger.warning("[heartbeat] fallo para user %s: %r", login.user_id, exc)
+                # token caducado (~1h) → renovar con el refresh y reintentar
+                logger.warning("[heartbeat] fallo para user %s: %r — renovando token",
+                               login.user_id, exc)
+                if await _refresh_session_token(session_token):
+                    try:
+                        game = PssGameService(http)
+                        await game.send_heartbeat(login.access_token)
+                        logger.info("[heartbeat] OK tras renovar el token")
+                    except Exception as exc2:
+                        logger.warning("[heartbeat] sigue fallando: %r", exc2)
             finally:
                 await http.close()
     finally:
@@ -257,10 +324,21 @@ async def get_ship_info(req: SessionRequest):
     try:
         http = PssHttpClient()
         ship_service = PssShipService(http)
-        ship = await ship_service.get_ship_by_user_id(
-            access_token=login.access_token,
-            user_id=login.user_id,
-        )
+        try:
+            ship = await ship_service.get_ship_by_user_id(
+                access_token=login.access_token,
+                user_id=login.user_id,
+            )
+        except PssApiError as exc:
+            # el accessToken caducó (~1h) → renovar con el refresh y reintentar
+            if "authorize access token" not in str(exc).lower():
+                raise
+            if not await _refresh_session_token(req.session_token):
+                raise
+            ship = await ship_service.get_ship_by_user_id(
+                access_token=login.access_token,
+                user_id=login.user_id,
+            )
         await http.close()
 
         # Join con el catálogo: identificar las shield rooms del usuario.
@@ -292,11 +370,16 @@ async def get_ship_info(req: SessionRequest):
         return {
             "success": True,
             "shield_info": {
-                "note": ("El escudo es un estado de batalla: se computa en tiempo "
-                         "real desde las salas de escudo durante el combate. El 0 "
-                         "del XML es el restante tras la última batalla."),
+                "note": ("El escudo de la nave solo existe EN BATALLA: en el juego "
+                         "el panel de escudo vive en BattleSceneUIManager (HUD de "
+                         "combate) y lo generan las salas de escudo. Fuera de "
+                         "combate la API reporta Shield=0 (verificado tambien en "
+                         "InspectShipViaShipId). El equivalente fuera de batalla es "
+                         "la INMUNIDAD PvP (ImmunityDate): el 'escudo de "
+                         "proteccion' del juego."),
                 "rooms": shield_rooms,
             },
+            "immunity": _immunity_info(ship.immunity_date),
             "ship": {
                 "ship_id": ship.ship_id,
                 "ship_name": ship.ship_name,
@@ -314,6 +397,9 @@ async def get_ship_info(req: SessionRequest):
                 "skin_opacity_value": ship.skin_opacity_value,
                 "sticker_string": ship.sticker_string,
                 "tags": ship.tags,
+                "immunity_date": ship.immunity_date,
+                "status_start_date": ship.status_start_date,
+                "update_date": ship.update_date,
                 "characters_count": len(ship.characters),
                 "rooms_count": len(ship.rooms),
                 "items_count": len(ship.items),

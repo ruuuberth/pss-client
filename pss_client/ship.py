@@ -121,6 +121,14 @@ class Ship:
     skin_opacity_value: float
     sticker_string: str
     tags: str
+    # estado temporal (todo lo que el XML expone del estado de la nave):
+    #   immunity_date: hasta cuándo la nave tiene inmunidad PvP (el "escudo
+    #     de protección" que el juego menciona en su UI: "immunity shields")
+    #   status_start_date: desde cuándo está en el ShipStatus actual
+    #   update_date: último update del registro en el servidor
+    immunity_date: Optional[str] = None
+    status_start_date: Optional[str] = None
+    update_date: Optional[str] = None
     characters: List[Character] = field(default_factory=list)
     rooms: List[Room] = field(default_factory=list)
     items: List[Item] = field(default_factory=list)
@@ -154,6 +162,9 @@ class Ship:
             skin_opacity_value=float(node.attrib.get("SkinOpacityValue", 0)),
             sticker_string=node.attrib.get("StickerString", ""),
             tags=node.attrib.get("Tags", ""),
+            immunity_date=node.attrib.get("ImmunityDate") or None,
+            status_start_date=node.attrib.get("StatusStartDate") or None,
+            update_date=node.attrib.get("UpdateDate") or None,
             characters=chars,
             rooms=rooms,
             items=items,
