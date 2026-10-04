@@ -62,6 +62,38 @@ active_sessions: dict[str, UserLogin] = {}
 _heartbeat_tasks: dict[str, asyncio.Task] = {}  # session_token -> task
 
 
+def _restore_sessions() -> int:
+    """Restaura las sesiones persistidas en ~/.pss-client/tokens.json.
+
+    Al arrancar, las cuentas con accessToken guardado vuelven a estar
+    disponibles sin re-login (el navegador conserva su session_token).
+    """
+    from pss_client.auth import _load_tokens
+    restored = 0
+    for email, t in _load_tokens().items():
+        at = t.get("access_token") or ""
+        uid = int(t.get("user_id") or 0)
+        if at and uid:
+            session_token = f"sess_{uid}_{at[:16]}"
+            active_sessions[session_token] = UserLogin(
+                access_token=at, user_id=uid,
+                previous_last_login_date=None, raw={})
+            restored += 1
+            logger.info("[startup] sesión restaurada user=%s (%s…)", uid, session_token[:24])
+    if restored:
+        logger.info("[startup] %d sesión(es) restaurada(s) al arrancar", restored)
+    return restored
+
+
+@app.on_event("startup")
+async def _on_startup() -> None:
+    n = _restore_sessions()
+    for token in list(active_sessions):
+        _start_heartbeat(token)
+    if n:
+        logger.info("[startup] heartbeat reactivado para %d sesión(es)", n)
+
+
 async def _heartbeat_loop(session_token: str, interval: int = 60):
     """Envía HeartBeat4 cada `interval` segundos mientras la sesión viva.
 

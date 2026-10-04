@@ -88,6 +88,47 @@ def create_checksum(
     return hashlib.md5(payload.encode("utf-8")).hexdigest()
 
 
+TOKENS_FILE = os.path.expanduser("~/.pss-client/tokens.json")
+
+
+def _load_tokens() -> dict[str, dict]:
+    """Tokens persistidos por email (como el juego persiste su sesión)."""
+    try:
+        with open(TOKENS_FILE) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def _save_token(email: str, device_key: str, refresh_token: str,
+                user_id: int, access_token: str = "") -> None:
+    """Persiste el refreshToken de una cuenta (supervive reinicios del server).
+
+    El refreshToken es el equivalente a la sesión del dispositivo en el
+    juego real: mientras sea válido, el login no necesita crear otra cuenta
+    temporal (evita errorCode 445) y funciona aunque el deviceKey ya esté
+    vinculado (evita el 400 linked_account).
+
+    El accessToken se guarda además para que la API REST pueda RESTAURAR la
+    sesión al arrancar (el navegador no necesita re-loguear tras un reinicio).
+    """
+    email = email.strip().lower()
+    tokens = _load_tokens()
+    entry = {
+        "device_key": device_key,
+        "refresh_token": refresh_token,
+        "user_id": user_id,
+        "saved_at": _to_pss_timestamp(_utc_now()),
+    }
+    if access_token:
+        entry["access_token"] = access_token
+    tokens[email] = entry
+    os.makedirs(os.path.dirname(TOKENS_FILE), exist_ok=True)
+    with open(TOKENS_FILE, "w") as f:
+        json.dump(tokens, f, indent=2)
+    _log.info("[tokens] refreshToken persistido para %s", email)
+
+
 def _web_device_info() -> dict[str, Any]:
     """UserDeviceInfo emulando el cliente web del juego (como pss-companion).
 
@@ -167,8 +208,52 @@ class PssAuth:
             device_key = str(uuid5(NAMESPACE_URL, f"pss-client:{email}"))
         _log.info("[email-password-flow] inicio email=%r device_key=%r", email, device_key)
 
-        # PASO 1: DeviceLogin17 con deviceKey nuevo (cuenta web temporal)
-        step1 = await self._device_login_raw(device_key)
+        # PASO 0: refreshToken persistido de un login anterior → login directo.
+        # Es lo que hace el juego real: la sesión del dispositivo se guarda y
+        # no se vuelve a pedir email/password. Si el refresh falla (expirado/
+        # revocado) se cae al flujo completo de abajo.
+        saved = _load_tokens().get(email.strip().lower())
+        if saved and saved.get("refresh_token"):
+            try:
+                _log.info("[email-password-flow] paso0 probando refreshToken persistido…")
+                step0 = await self._device_login_raw(
+                    saved.get("device_key") or device_key,
+                    refresh_token=saved["refresh_token"])
+                at0 = step0.attrib.get("accessToken") or ""
+                uid0 = int(step0.attrib.get("UserId", "0") or 0)
+                if at0 and uid0:
+                    _log.info("[email-password-flow] paso0 LOGIN DIRECTO UserId=%s (refresh persistido)", uid0)
+                    _save_token(email, saved.get("device_key") or device_key,
+                                saved["refresh_token"], uid0, access_token=at0)
+                    return UserLogin(
+                        access_token=at0,
+                        user_id=uid0,
+                        previous_last_login_date=step0.attrib.get("PreviousLastLoginDate"),
+                        raw=dict(step0.attrib),
+                    )
+            except Exception as exc:
+                _log.info("[email-password-flow] paso0 refresh no válido (%r) — flujo completo", exc)
+
+        # PASO 1: DeviceLogin17 con deviceKey nuevo (cuenta web temporal).
+        # Si el deviceKey determinista ya quedó VINCULADO a la cuenta del
+        # email (login previo cuyo refresh no se persistió), la API responde
+        # errorCode=400 con el email en errorMessage. Sin refresh guardado no
+        # hay tokens en esa respuesta → hay que rotar el deviceKey y reintentar
+        # (una sola vez; la rotación es determinista por email+intentos).
+        step1 = None
+        for attempt in range(2):
+            try:
+                step1 = await self._device_login_raw(device_key)
+                break
+            except PssApiError as exc:
+                msg = str(exc)
+                if "linked_account" in msg and attempt == 0:
+                    _log.warning("[email-password-flow] paso1 deviceKey ya vinculado — rotando")
+                    device_key = str(uuid5(NAMESPACE_URL, f"pss-client:{email}#{attempt + 1}"))
+                    continue
+                raise
+        if step1 is None:
+            raise PssApiError("DeviceLogin17 (paso 1) falló tras rotar deviceKey")
         at1 = step1.attrib.get("accessToken") or ""
         _log.info("[email-password-flow] paso1 DeviceLogin17 OK user_id=%s token=%s...",
                   step1.attrib.get("UserId"), at1[:8])
@@ -211,6 +296,12 @@ class PssAuth:
             # LOGIN CORRECTO: pasar al paso 3 con el refreshToken
             _log.info("[email-password-flow] paso2 LOGIN OK UserId=%s (refresh=%s)",
                       user_id, bool(refresh))
+            if refresh:
+                # Persistir el refresh AHORA (antes del paso 3) para que el
+                # próximo login pueda entrar directo aunque el server se
+                # reinicie o este proceso muera. El deviceKey que usamos es
+                # el definitivo (incluida la rotación del paso 1).
+                _save_token(email, device_key, refresh, user_id)
         else:
             # errores específicos de la API
             err = node.attrib.get("errorMessage") or "Authorize falló"
@@ -229,6 +320,7 @@ class PssAuth:
                 _log.info("[email-password-flow] paso3 DeviceLogin17(refresh) UserId=%s token=%s...",
                           uid3, at3[:8])
                 if at3 and uid3 == user_id:
+                    _save_token(email, device_key, refresh, user_id, access_token=at3)
                     return UserLogin(
                         access_token=at3,
                         user_id=uid3,
@@ -242,6 +334,8 @@ class PssAuth:
         # Fallback: si el paso 3 no devolvió token, usar el accessToken directo
         # del paso 2 (algunos builds lo incluyen) o el refreshToken como token.
         fallback_token = node.attrib.get("accessToken") or refresh
+        if refresh:
+            _save_token(email, device_key, refresh, user_id, access_token=fallback_token)
         return UserLogin(
             access_token=fallback_token,
             user_id=user_id,
