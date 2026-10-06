@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from typing import Optional
 import asyncio
 import os
+from datetime import datetime, timezone
 
 from pss_client.auth import PssAuth, UserLogin
 from pss_client.transport import PssApiError, PssHttpClient
@@ -153,12 +154,46 @@ async def _refresh_session_token(session_token: str) -> bool:
     return False
 
 
+# Renovación PROACTIVA: los accessToken de PSS viven ~52 min (medida real
+# del log 2026-10-04: 51 heartbeats OK consecutivos → "Failed to authorize
+# access token", ver issue #3). Se renueva a los 45 min con margen, ANTES
+# del fallo reactivo del heartbeat.
+PROACTIVE_REFRESH_AFTER = 45 * 60  # segundos
+
+
+def _access_token_age_seconds(login: UserLogin) -> Optional[float]:
+    """Edad del accessToken actual según el 'saved_at' persistido en tokens.json.
+
+    saved_at se actualiza en cada renovación (_save_token lo escribe siempre),
+    así que refleja la emisión REAL del token — incluso tras un reinicio del
+    server (_restore_sessions trae tokens ya viejos; usar la hora de arranque
+    del loop los trataría como recién emitidos y dejaría pasar la expiración).
+    Devuelve None si no hay saved_at (se renueva por la vía reactiva).
+    """
+    from pss_client.auth import _email_for_user, _load_tokens
+    email = _email_for_user(login.user_id)
+    if not email:
+        return None
+    entry = _load_tokens().get(email) or {}
+    saved_at = entry.get("saved_at") or ""
+    try:
+        emitted = datetime.strptime(saved_at[:19], "%Y-%m-%dT%H:%M:%S").replace(
+            tzinfo=timezone.utc)
+    except ValueError:
+        return None
+    return (datetime.now(timezone.utc) - emitted).total_seconds()
+
+
 async def _heartbeat_loop(session_token: str, interval: int = 60):
     """Envía HeartBeat4 cada `interval` segundos mientras la sesión viva.
 
     Replica el heartbeat del juego (UserManager.CheckHeartbeat -> POST
     UserService/HeartBeat4) para mantener la cuenta marcada Online en el
     servidor de PSS (ShipStatus Online en el XML de la nave).
+
+    Además del reintento reactivo (fallo → renovar → reintentar), renueva
+    PROACTIVAMENTE el accessToken a los 45 min de emisión para que el
+    heartbeat (y cualquier llamada del usuario) nunca vea un token muerto.
     """
     login = active_sessions.get(session_token)
     if not login:
@@ -170,6 +205,19 @@ async def _heartbeat_loop(session_token: str, interval: int = 60):
             login = active_sessions.get(session_token)
             if not login:
                 break  # sesión cerrada
+            # Renovación PROACTIVA: a los 45 min de EMISIÓN (saved_at real,
+            # no de arranque del loop) pedir token nuevo antes del fallo.
+            age = _access_token_age_seconds(login)
+            if age is not None and age >= PROACTIVE_REFRESH_AFTER:
+                if await _refresh_session_token(session_token):
+                    logger.info(
+                        "[heartbeat] token renovado proactivamente para user %s "
+                        "(age %.0f min)", login.user_id, age / 60)
+                    continue  # token fresco → siguiente ciclo normal
+                logger.warning(
+                    "[heartbeat] renovación proactiva falló para user %s "
+                    "(age %.0f min) — la reactiva actuará al fallar",
+                    login.user_id, age / 60)
             http = PssHttpClient()
             try:
                 game = PssGameService(http)
@@ -264,7 +312,12 @@ def _extract_user_info(login: UserLogin) -> dict:
 def _require_session(session_token: str) -> UserLogin:
     login = active_sessions.get(session_token)
     if not login:
-        raise HTTPException(status_code=401, detail="Sesión inválida o expirada")
+        # 401 estructurado: el frontend detecta reason=session_expired y
+        # muestra el aviso en el login en vez de limpiar en silencio.
+        raise HTTPException(status_code=401, detail={
+            "reason": "session_expired",
+            "message": "Sesión expirada, inicia sesión de nuevo",
+        })
     return login
 
 
@@ -275,6 +328,17 @@ async def logout(req: SessionRequest):
         del active_sessions[req.session_token]
         logger.info("[logout] sesión cerrada %s", req.session_token[:20])
     return {"success": True}
+
+
+@app.post("/auth/refresh")
+async def auth_refresh(req: SessionRequest):
+    """Fuerza la renovación del accessToken de una sesión (tests manuales).
+
+    Devuelve renewed=False si la sesión no existe o el refreshToken ya no
+    sirve — el caller entonces debe re-loguear (401 del resto de endpoints).
+    """
+    renewed = await _refresh_session_token(req.session_token)
+    return {"success": True, "renewed": renewed}
 
 
 # --- User / cuenta ----------------------------------------------------------- #
