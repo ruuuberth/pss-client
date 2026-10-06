@@ -429,7 +429,17 @@ async function api(endpoint, body) {
     body: JSON.stringify(body)
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+  if (!res.ok) {
+    // detail puede ser dict {reason, message} o string (a veces JSON serializado)
+    let detail = data.detail;
+    if (typeof detail === 'string') {
+      try { detail = JSON.parse(detail); } catch (e) {}
+    }
+    const err = new Error(detail?.message || detail || `HTTP ${res.status}`);
+    err.detail = detail;
+    err.status = res.status;
+    throw err;
+  }
   return data;
 }
 
@@ -710,6 +720,13 @@ function renderAll() {
     enterDashboard(userData);
   } catch (e) {
     localStorage.removeItem('pss_session');
+    // Aviso visible si la sesión expiró (issue #3): antes se limpiaba en
+    // silencio y el usuario no sabía por qué había perdido la sesión.
+    if (e.detail?.reason === 'session_expired') {
+      const errBox = $('loginError');
+      errBox.textContent = e.detail.message || 'Sesión expirada, inicia sesión de nuevo';
+      errBox.style.display = 'block';
+    }
   }
 })();
 </script>
