@@ -20,7 +20,7 @@ from pss_client.auth import PssAuth, UserLogin
 from pss_client.transport import PssApiError, PssHttpClient
 from pss_client.ship import PssShipService
 from pss_client.game import PssGameService, create_action_checksum
-from pss_client.designs import get_design_catalog
+from pss_client.designs import get_design_catalog, stat_for_level
 
 # --- Logging: archivo + consola ---------------------------------------------- #
 LOG_FILE = os.path.join(os.path.dirname(__file__), "..", "pss-client.log")
@@ -94,7 +94,8 @@ def _restore_sessions() -> int:
         at = t.get("access_token") or ""
         uid = int(t.get("user_id") or 0)
         if at and uid:
-            session_token = f"sess_{uid}_{at[:16]}"
+            from pss_client.auth import _session_token_for
+            session_token = _session_token_for(email, uid)
             active_sessions[session_token] = UserLogin(
                 access_token=at, user_id=uid,
                 previous_last_login_date=None, raw={})
@@ -218,7 +219,8 @@ async def login(req: LoginRequest):
                 email=req.email,
                 password=req.password,
             )
-            session_token = f"sess_{login.user_id}_{login.access_token[:16]}"
+            from pss_client.auth import _session_token_for
+            session_token = _session_token_for(req.email, login.user_id)
             active_sessions[session_token] = login
             _start_heartbeat(session_token)
             logger.info("[login] LOGIN OK user_id=%s session=%s (heartbeat ON)",
@@ -283,12 +285,25 @@ async def user_me(req: SessionRequest):
     login = _require_session(req.session_token)
     http = PssHttpClient()
     try:
-        resp = await http.request(
-            "UserService/GetCurrentUser",
-            method="GET",
-            response_root_tag="GetCurrentUser",
-            accessToken=login.access_token,
-        )
+        try:
+            resp = await http.request(
+                "UserService/GetCurrentUser",
+                method="GET",
+                response_root_tag="GetCurrentUser",
+                accessToken=login.access_token,
+            )
+        except PssApiError as exc:
+            # accessToken caducado (~1h) → renovar y reintentar
+            if "authorize access token" not in str(exc).lower():
+                raise
+            if not await _refresh_session_token(req.session_token):
+                raise
+            resp = await http.request(
+                "UserService/GetCurrentUser",
+                method="GET",
+                response_root_tag="GetCurrentUser",
+                accessToken=login.access_token,
+            )
         node = resp.root if resp.root.tag == "GetCurrentUser" else resp.root.find(".//GetCurrentUser")
         if node is None:
             return {"success": True, "user": _extract_user_info(login)}
@@ -346,12 +361,27 @@ async def get_ship_info(req: SessionRequest):
         # XML siempre); lo computa el motor de batalla desde estas rooms.
         # (diagnóstico 2026-10-03, ver issue #1)
         shield_rooms = []
+        char_max_hp: dict[int, float] = {}
         try:
             dhttp = PssHttpClient()
             catalog = await get_design_catalog(dhttp, login.access_token)
             room_names = catalog.get("room_designs", {})
             room_types = catalog.get("room_types", {})
             room_stats = catalog.get("room_stats", {})
+            # max HP por personaje: interpolación del catálogo
+            # (PSCharacter.GetStatForLevel desensamblado, ver designs.stat_for_level)
+            char_stats = catalog.get("character_stats", {})
+            for c in ship.characters:
+                cs = char_stats.get(c.character_design_id)
+                if not cs:
+                    continue
+                char_max_hp[c.character_id] = round(stat_for_level(
+                    level=c.level,
+                    basic=float(cs.get("hp", 0)),
+                    final=float(cs.get("final_hp", 0)),
+                    max_level=int(cs.get("max_level", 40) or 40),
+                    progression=cs.get("progression", "Linear"),
+                ), 1)
             for r in ship.rooms:
                 if room_types.get(r.room_design_id) == "Shield":
                     stats = room_stats.get(r.room_design_id, {})
@@ -364,9 +394,21 @@ async def get_ship_info(req: SessionRequest):
                         "max_system_power": stats.get("max_system_power", ""),
                         "capacity": stats.get("capacity", ""),
                     })
+            # info extendida de habitaciones: nombre, tipo y nivel del catálogo
+            rooms_info = {}
+            for r in ship.rooms:
+                stats = room_stats.get(r.room_design_id, {})
+                rooms_info[r.room_id] = {
+                    "name": room_names.get(r.room_design_id,
+                                          f"RoomDesign {r.room_design_id}"),
+                    "type": stats.get("type", room_types.get(r.room_design_id, "")),
+                    "level": stats.get("level", ""),
+                    "category": stats.get("category", ""),
+                }
             await dhttp.close()
         except Exception as exc:
             logger.warning("[ship/info] join de shield rooms falló: %r", exc)
+        rooms_info = locals().get("rooms_info", {})
         return {
             "success": True,
             "shield_info": {
@@ -411,7 +453,7 @@ async def get_ship_info(req: SessionRequest):
                     "name": c.name,
                     "level": c.level,
                     "hp": c.hp,
-                    "max_hp": c.max_hp,
+                    "max_hp": char_max_hp.get(c.character_id, c.max_hp) or c.max_hp,
                     "shield": c.shield,
                     "race_id": c.race_id,
                     "weapon_design_id": c.weapon_design_id,
@@ -429,6 +471,10 @@ async def get_ship_info(req: SessionRequest):
                     "system_power": r.system_power,
                     "current_capacity": r.current_capacity,
                     "character_ids": r.characters,
+                    "name": (rooms_info.get(r.room_id, {}) or {}).get("name", ""),
+                    "room_type": (rooms_info.get(r.room_id, {}) or {}).get("type", ""),
+                    "level": (rooms_info.get(r.room_id, {}) or {}).get("level", ""),
+                    "category": (rooms_info.get(r.room_id, {}) or {}).get("category", ""),
                 }
                 for r in ship.rooms
             ],

@@ -368,9 +368,10 @@ td.strong { color: var(--text); font-weight: 510; }
           <div class="card-header"><h3>Tripulación</h3><span class="count" id="crewCount"></span></div>
           <div class="card-body">
             <table>
-              <thead><tr><th>Personaje</th><th>Nivel</th><th>Habitación</th></tr></thead>
+              <thead><tr><th>Personaje</th><th>Nivel</th>
+      <th>HP</th><th>Habitación</th></tr></thead>
               <tbody id="crewBody">
-                <tr><td colspan="3" class="loading center"><div class="spinner"></div><br>Cargando tripulación…</td></tr>
+                <tr><td colspan="4" class="loading center"><div class="spinner"></div><br>Cargando tripulación…</td></tr>
               </tbody>
             </table>
           </div>
@@ -620,16 +621,22 @@ function renderCrew() {
   const chars = shipData?.characters || [];
   $('crewCount').textContent = `${chars.length} personajes`;
   if (!chars.length) {
-    $('crewBody').innerHTML = '<tr><td colspan="3" class="center sub2">Sin personajes</td></tr>';
+    $('crewBody').innerHTML = '<tr><td colspan="4" class="center sub2">Sin personajes</td></tr>';
     return;
   }
-  $('crewBody').innerHTML = chars.map(c => `
+  $('crewBody').innerHTML = chars.map(c => {
+    const maxHp = c.max_hp;
+    const hpCell = maxHp
+      ? `<span class="mono">${c.hp || 0} <span class="sub2">/ ${maxHp}</span></span>`
+      : '<span class="sub2">—</span>';
+    return `
     <tr>
       <td class="strong">${c.name || designName('character_designs', c.character_design_id) || 'Personaje #'+c.character_id}
         ${c.name && designName('character_designs', c.character_design_id) ? '<br><span class="sub2" style="font-weight:400">'+designName('character_designs', c.character_design_id)+'</span>' : ''}</td>
       <td>${c.level}</td>
+      <td>${hpCell}</td>
       <td class="sub2">${designName('room_designs', roomDesignIdOf(c.room_id)) || '#'+c.room_id}</td>
-    </tr>`).join('');
+    </tr>`;}).join('');
 }
 
 function renderRooms() {
@@ -641,7 +648,7 @@ function renderRooms() {
   }
   $('roomBody').innerHTML = rooms.map(r => `
     <tr>
-      <td class="strong">${designName('room_designs', r.room_design_id) || 'Habitación #'+r.room_id}
+      <td class="strong">${r.name || designName('room_designs', r.room_design_id) || 'Habitación #'+r.room_id}
         ${r.room_status ? ' <span class="pill" style="margin-left:6px">'+r.room_status+'</span>' : ''}</td>
       <td class="mono">${r.system_power || r.assigned_power || 0}</td>
       <td class="mono">${r.current_capacity || 0}</td>

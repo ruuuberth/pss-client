@@ -140,6 +140,18 @@ async def get_design_catalog(http: PssHttpClient, access_token: str) -> dict[str
     _DESIGN_CACHE.update({
         "room_designs": _collect(static_root, "RoomDesign", "RoomDesignId",
                                   ("RoomName",)),
+        # stats por CharacterDesign para derivar max HP por nivel
+        # (fórmula del juego: GetStatForLevel RVA 0x3853B30 — ver módulo ship):
+        "character_stats": {
+            int(cd.attrib.get("CharacterDesignId", 0)): {
+                "name": cd.attrib.get("CharacterDesignName", ""),
+                "hp": cd.attrib.get("Hp", "0"),
+                "final_hp": cd.attrib.get("FinalHp", "0"),
+                "max_level": cd.attrib.get("MaxCharacterLevel", "40"),
+                "progression": cd.attrib.get("ProgressionType", "Linear"),
+            }
+            for cd in static_root.findall(".//CharacterDesign")
+        },
         # atributos extra de RoomDesign para joins del dashboard:
         # tipo (Shield, Reactor, ...) y stats
         "room_types": _collect(static_root, "RoomDesign", "RoomDesignId",
@@ -184,3 +196,31 @@ async def get_design_catalog(http: PssHttpClient, access_token: str) -> dict[str
     _log.info("[designs] catálogo cargado: %s",
               {k: len(v) for k, v in _DESIGN_CACHE.items()})
     return _DESIGN_CACHE
+
+
+def stat_for_level(level: int, basic: float, final: float,
+                   max_level: int, progression: str = "Linear") -> float:
+    """Replica PSCharacter.GetStatForLevel (RVA 0x3853B30) sin el bonus de gym.
+
+    Fórmula desensamblada del juego:
+        pct   = GetFinalPercentageForLevel(level)   # según ProgressionType
+        stat  = (pct * final + (1 - pct) * basic) * (1 + bonus/100)
+    El bonus (entrenamiento/gym, BoostValuesString) no se aplica aquí: es
+    estado por-usuario que el XML de la nave no expone.
+
+    ProgressionType (verificado en el catálogo: Linear 489, EaseIn 48,
+    EaseOut 17):
+        Linear : pct = (L-1)/(maxLevel-1)
+        EaseIn : pct = ((L-1)/(maxLevel-1))^2      # case 1 del switch
+        EaseOut: 1 - (1-(L-1)/(maxLevel-1))^2      # case 2 (pow con 2.0)
+    """
+    if max_level <= 1:
+        return float(basic)
+    x = (level - 1) / (max_level - 1)
+    if progression == "EaseIn":
+        pct = x * x
+    elif progression == "EaseOut":
+        pct = 1 - (1 - x) * (1 - x)
+    else:  # Linear
+        pct = x
+    return pct * float(final) + (1 - pct) * float(basic)

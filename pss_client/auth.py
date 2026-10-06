@@ -129,6 +129,17 @@ def _save_token(email: str, device_key: str, refresh_token: str,
     _log.info("[tokens] refreshToken persistido para %s", email)
 
 
+def _session_token_for(email: str, user_id: int) -> str:
+    """session_token ESTABLE por cuenta (no rota con las renovaciones).
+
+    Antes derivaba del access_token (rota cada ~1h), así que cualquier
+    reinicio del server tras una renovación dejaba el session_token del
+    navegador huérfano → 401. Derivarlo del email+user_id lo hace estable
+    para siempre.
+    """
+    return f"sess_{user_id}_{uuid5(NAMESPACE_URL, f'pss-client:session:{email.strip().lower()}')}"
+
+
 def _email_for_user(user_id: int) -> Optional[str]:
     """Email cuyo token persistido corresponde a user_id (para renovar sesiones)."""
     for email, entry in _load_tokens().items():
