@@ -39,6 +39,19 @@ uv run python test_auth.py
 
 Log del servidor: `pss-client.log` en la raíz del repo (nivel DEBUG: cada request/response contra la API de PSS).
 
+### CLI
+
+Además del gateway hay una CLI con subcomandos que usa la misma sesión persistida (`~/.pss-client/tokens.json`) y el mismo cliente HTTP — el flujo de login sigue siendo el del dashboard web:
+
+```bash
+uv run pss-client whoami           # o: uv run python -m pss_client.cli whoami
+```
+
+`whoami` verifica la sesión en vivo contra `UserService/GetCurrentUser` (el mismo endpoint que `POST /user/me`) y muestra el email y el estado de la sesión. Es de **solo lectura**: nunca renueva tokens ni escribe `tokens.json`. Con varias cuentas guardadas, `--email` elige una (por defecto: la más reciente); `--json` serializa la salida para scripts; `--debug` muestra cada request.
+
+Códigos de salida: `0` sesión activa · `2` sin sesión guardada (con pista de cómo loguearse) · `3` sesión expirada (token rechazado por la API) · `1` error de red/API inesperado. Ningún path imprime un stack trace crudo.
+
+
 ### Variables de entorno (opcionales)
 
 | Variable | Default | Para qué |

@@ -17,6 +17,15 @@ dependencies = [
 [project.urls]
 Repository = "https://github.com/ruuuberth/pss-client"
 
+[project.scripts]
+pss-client = "pss_client.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
