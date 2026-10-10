@@ -1,12 +1,13 @@
 """Tests de validación del HTML del frontend (issue #12).
 
-Los tests estáticos (sin dependencias) validan el source de
-frontend/index.html: las filas Escudo/Inmunidad del Resumen deben usar
-el mismo markup <tr> del helper row() que el resto de filas, y los
-colores deben venir de variables CSS definidas en :root.
+Tests estáticos (sin dependencias) sobre el source de frontend/index.html:
+las filas Escudo/Inmunidad del Resumen deben usar el mismo markup <tr>
+del helper row() que el resto de filas, y los colores deben venir de
+variables CSS definidas en :root.
 
-La validación de renderizado real en navegador se hace aparte con
-Node+jsdom via scripts/render_check.js (ver README del repo).
+La verificación visual en navegador (DOM renderizado, estilos calculados
+y edge cases) se hace manualmente con el archivo servido localmente;
+ver la sección de verificación del PR que cierra el issue #12.
 
 Uso:
     python -m pytest test_frontend_html.py -q
