@@ -11,6 +11,9 @@ on:
 
 permissions:
   contents: read
+  # gitleaks-action lee los commits de la PR para escanear solo el diff:
+  # sin este permiso falla con "Resource not accessible by integration" (403).
+  pull-requests: read
 
 concurrency:
   group: ci-${{ github.ref }}
