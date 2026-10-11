@@ -3,7 +3,7 @@ name = "pss-client"
 version = "0.1.0"
 description = "Cliente Python para la API de Pixel Starships (backend de autenticación)."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "ruuuberth" }]
 keywords = ["Pixel Starships", "PSS", "API", "client"]
@@ -16,6 +16,13 @@ dependencies = [
 
 [project.urls]
 Repository = "https://github.com/ruuuberth/pss-client"
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
 
 [build-system]
 requires = ["setuptools>=61"]
