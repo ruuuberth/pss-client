@@ -113,6 +113,53 @@ Itera las rooms; para cada una con `get_RoomType() == 6` (`public const RoomType
 - **El catálogo de diseños** (`DesignService`): flujo de 3 pasos — `SettingService/GetLatestVersion4` da las versiones actuales de cada catálogo; `ListAllStaticDesigns` (~13.5 MB) trae habitaciones/personajes/naves; `ListAllDynamicDesigns` trae misiones e items. Las respuestas son **base64(gzip(XML))** aunque el Content-Type diga `application/xml`, y **con versiones en 0 la API devuelve el catálogo VACÍO** — hay que pedir primero las versiones del Setting (commit `d7dc189`). Conteos verificados: 554 `CharacterDesign`, 798 `RoomDesign`, 228 `TaskDesign`, 2588 `ItemDesign` (issue #2).
 - **Lección de parseo XML** (commit `7a7fc7f`): los atributos usan capitalización exacta (`BattleCharacterHp`, no `BattleCharacterHP`); verificar contra los raw models de pssapi antes de asumir. El nombre del personaje viaja como `CharacterName` (no `Name`).
 
+## 7bis. EXTENDER/comprar inmunidad — endpoints encontrados (task 4 del issue #4)
+
+**Conclusión: SÍ existen endpoints accesibles por API para obtener/extender inmunidad PvP** — la activación de items (`ActivateItem3`, §7bis.1) y la compra en tienda (`PurchaseCatalog2`/`BuyReward2`, §7bis.2). La UI de "packs" del juego ("Activate this pack to obtain {0} of Immunity?") corresponde a **activar un item de inmunidad** (los packs que dan items), no a una compra directa de inmunidad: el flujo por API es obtener el item (craft/compra/recompensa) y activarlo.
+
+### 7bis.1. Usar un item de inmunidad del inventario — `ItemService/ActivateItem3`
+
+- **Firma (verificada en dos clientes de terceros independientes):**
+  `POST /ItemService/ActivateItem3?accessToken={token}&itemId={itemId}&clientDateTime={ts}&checksum={md5}` (versión pssapi.cs; **tachikoma la llama solo con `itemId` + `targetId`**, sin token ni checksum en la URL — ver nota).
+  - `itemId` = **ItemId de la instancia** en el inventario (no el ItemDesignId), tal como viaja en `ItemService/ListItemsOfAShip` (`<Item ItemId ItemDesignId Quantity ShipId>`).
+  - `targetId` = para inmunidad, 0 (aplica a la nave — inferido del default del cliente; la nave es la que recibe la inmunidad). Para consumibles de tripulación, `targetId` = CharacterId (verificado en tachikoma: `useConsumable(designId, characterId)`).
+  - `checksum` (versión pssapi.cs, NO verificada contra capturas): `md5(clientDateTime + ChecksumKey)` con los constantes ya conocidos (`"5343"`, `"Savvy!s0d@"`).
+- **Respuesta**: raíz `<ItemService>` con un hijo `<Item>` (estado del item consumido) **o** `<Character>` (si el target era un tripulante). Errores por atributo `errorMessage`/`errorCode` como siempre.
+- **Evidencia:**
+  - `arraken/pssapi.cs` `services/raw/ItemServiceRaw.cs` + `services/ItemService.cs` (commit 2026-04-25, lib NuGet `PssApi` 1.0.0+): firma completa con accessToken/clientDateTime/checksum; `ItemServiceUtils.CreateActivateItemChecksum` = `MD5(timestamp + checksumKey)` (inferida por el autor de la lib — el único punto sin verificación por captura).
+  - `raelldottin/tachikoma` + fork `kmorton1988/tachikoma` `sdk/client.py::activateItem3`: `POST …/ItemService/ActivateItem3?itemId={itemId}&targetId={targetId}&` y **funciona en producción diaria** para consumibles (así lo usan para HP/ATK de tripulación). Su URL corta sugiere que la API acepta la llamada sin checksum (o que el token va por cookie/header de sesión) — pendiente de confirmar con una captura propia.
+  - En el inventario del juego los items de inmunidad se **activan** (string del binario "Activate this pack to obtain {0} of Immunity?") — coincide con ActivateItem3, no con una compra directa.
+- **Items de inmunidad del catálogo** (`ItemService/ListItemDesigns2`, catálogo ya descargado por este repo, `item_designs`; verificado contra cassettes locales de pssapi-py):
+
+  | ItemDesignId | Nombre | SubTipo | Efecto (`EnhancementValue`, segundos) | Rareza |
+  |---|---|---|---|---|
+  | 90 | Half Day Immunity | Immunity | 43200 (12 h) | Common |
+  | 98 | One Day Immunity | Immunity | 86400 (24 h) | Elite |
+  | 99 | Three Days Immunity | Immunity | 259200 (72 h) | Unique |
+
+  Descripciones textuales del catálogo: "Grants 12/24/72 hours of immunity from PvP attacks." Los tres se **craftean** (MineralCost 200k/500k/1M, BuildTime 2/4/12 días) — por eso el flujo normal es craft → activar. `ListItemDesignActions` no registra acciones para 90/98/99 (efecto por `ItemSubType=Immunity` + `EnhancementValue`, no por ActionTypeId).
+
+### 7bis.2. Comprar en la tienda con starbux — `ShopService/PurchaseCatalog2` (fórmula verificada)
+
+- **Firma (44 capturas mitmproxy, 2026-08-09/10):** `POST /ShopService/PurchaseCatalog2?argument={arg}&clientDateTime={ts}&checksum={md5}&accessToken={token}`
+- **Checksum VERIFICADO (44/44):** `md5(argument + clientDateTime + accessToken + ChecksumKey + SavyChecksum)` = `md5(argument + clientDateTime + accessToken + "5343" + "Savvy!s0d@")`.
+- **`argument`** = identificador de la oferta del catálogo de la tienda (ej. verificado: `1291` → "Scorched Pod", 1000 starbux). Los arguments del catálogo vigente vienen de `LiveOpsService` (GetTodayLiveOps2 y catálogos de tienda con `LimitedCatalogQuantity`).
+- **Respuesta**: `<ShopService><PurchaseCatalog2 …>` con `<User>` hijo (créditos actualizados en `@Credits`) o error por atributo. El cargo de starbux lo hace el servidor.
+- **Fuente:** `raelldottin/tachikoma` `STATIC_ANALYSIS_FINDINGS.md` — catálogo de 44 endpoints con `checksum=` extraído del `global-metadata.dat` del cliente iOS (v31.1, Unity 6000.0.77f1); fórmula de PurchaseCatalog2 verificada con 44 capturas; `sdk/security.py::checksum_purchase_catalog2` es la implementación de referencia.
+- **Inmunidad vía tienda/scratchy:** las tablas oficiales de probabilidades (pixelstarships.com/Home/ScratchyProbabilities) listan "Half Day Immunity" (2.097%) y "One Day Immunity" (0.735%) como premios — o sea que existen recompensas tipo item de inmunidad. El mecanismo de compra por API sería `RewardService/BuyReward2` (checksum más simple del juego: `md5(clientDateTime + ChecksumKey + SavyChecksum)` — 4 capturas, NO incluye ni rewardDesignId ni accessToken) sobre un RewardDesign con `ArgumentString="item:{id}x{n}"`, o `ShopService/PurchaseCatalog2` según el tipo de oferta. **Pendiente de capturar:** una compra/activación real de inmunidad para fijar endpoint y `argument` exactos — el snapshot local de RewardDesigns (2024) no contiene packs de inmunidad, y las recompensas de misión/draw de los cassettes locales tampoco referencian los items 90/98/99.
+
+### 7bis.3. Cadena completa para extender inmunidad desde la API (propuesta de implementación)
+
+1. Inventario: `GET ItemService/ListItemsOfAShip?accessToken=…` → buscar `<Item ItemDesignId="90|98|99">` con `Quantity>0` y tomar su **ItemId**.
+2. (si no hay stock) Craft: las fórmulas de crafteo de los items 90/98/99 están en el catálogo (`CraftDesigns` — pendiente mapearlas); alternativa: comprar item o pack (§7bis.2).
+3. Activar: `POST ItemService/ActivateItem3?itemId={ItemId}&targetId=0&clientDateTime=…&checksum=…`.
+4. Re-sync: `ShipService/GetShipByUserId` → `ImmunityDate` debe haberse extendido en `EnhancementValue` segundos.
+
+**Riesgos/preguntas abiertas (para la card de implementación):**
+- ¿Qué forma exacta de ActivateItem3 acepta el server hoy (con/sin checksum; versión pssapi.cs vs tachikoma)? Desempatar con **una captura mitmproxy propia** activando una inmunidad en el juego real — mismo método que usó tachikoma para sus 44 capturas.
+- Tachikoma llama sin accessToken en la URL — posible sesión por cookie o un endpoint legacy; la captura lo dirá.
+- `RewardService/BuyReward2` con `rewardDesignId` de un pack de inmunidad: saber qué RewardDesigns de inmunidad existen hoy (catálogo vivo de RewardService/ListAllRewardDesigns — el snapshot local de 2024 no trae packs de inmunidad).
+
 ## 8. Cómo reproducir la extracción
 
 Todo lo anterior salió del binario IL2CPP del cliente de Steam (Linux), `GameAssembly.so`:
@@ -136,6 +183,7 @@ Artefactos del dump (local del autor): `~/Work/il2cpp_output/` con `dump.cs`, `s
 | Stats derivados del catálogo + `GetStatForLevel` | #2 (cerrado), commit `d9aebeb` |
 | Caducidad del accessToken (~52 min) + renovación | #3 (cerrado), commits `d9901c6`, `f4ce0fd` |
 | `ImmunityDate` = inmunidad PvP en el dashboard | #4, commit `d9901c6` |
+| EXTENDER/comprar inmunidad: `ItemService/ActivateItem3` (items 90/98/99, SubType Immunity) + `ShopService/PurchaseCatalog2` (checksum md5 verificado 44 capturas) | #4 task 4, sección 7bis |
 | `session_token` estable (uuid5 del email) | #5, commit `d9aebeb` |
 | `get_MaxShield` = Σ Capacity×100 y `UpdateStatusPanel` | #8 (comentario de hallazgo) |
 | `HpImprovement` / entrenamiento del gym expuesto en el XML | #7 (abierto) |
