@@ -20,6 +20,7 @@
   --accent: #7170ff;
   --accent-hover: #828fff;
   --success: #10b981;
+  --warn: #f2cf3b;
   --danger: #ff5555;
   --border: rgba(255,255,255,0.08);
   --border-subtle: rgba(255,255,255,0.05);
@@ -238,7 +239,7 @@ td.strong { color: var(--text); font-weight: 510; }
   color: var(--text-2);
 }
 .pill.ok { color: var(--success); border-color: rgba(16,185,129,0.3); }
-.pill.warn { color: #f2cf3b; border-color: rgba(242,207,59,0.3); }
+.pill.warn { color: var(--warn); border-color: rgba(242,207,59,0.3); }
 .pill.bad { color: var(--danger); border-color: rgba(255,85,85,0.3); }
 
 .loading { text-align: center; padding: 40px; color: var(--text-3); font-size: 14px; }
@@ -419,6 +420,8 @@ let session = null;
 let shipData = null;
 let userData = null;
 let designNames = null;  // {room_designs: {id: nombre}, ...}
+let immunityTimer = null;   // tick de 1s: redibuja el contador en vivo
+let shipResyncTimer = null; // re-sync de /ship/info alineado con el heartbeat
 
 function $(id) { return document.getElementById(id); }
 
@@ -498,6 +501,7 @@ async function doLogout() {
   }
   localStorage.removeItem('pss_session');
   session = null; shipData = null; userData = null;
+  stopImmunityClock();  // detiene el contador y el re-sync de /ship/info (issue #4)
   $('dashView').classList.remove('active');
   $('loginView').style.display = 'flex';
   $('password').value = '';
@@ -537,8 +541,60 @@ async function loadShip() {
   try {
     shipData = await api('/ship/info', { session_token: session });
     renderAll();
+    startImmunityClock();
   } catch (e) {
     $('ovStats').innerHTML = `<div class="stat-card" style="grid-column: 1/-1;"><div class="error-box" style="display:block; margin:0;">${e.message}</div></div>`;
+  }
+}
+
+/* ---------- Contador de inmunidad en vivo (issue #4) ---------- */
+// El countdown corre en el cliente (tick de 1s) para no martillar la API;
+// cada 60s se re-pide /ship/info alineado con el heartbeat del servidor
+// (también renueva ImmunityDate si el juego la extendió).
+function startImmunityClock() {
+  if (immunityTimer) return;  // ya corriendo
+  immunityTimer = setInterval(tickImmunity, 1000);
+  if (shipResyncTimer) return;
+  shipResyncTimer = setInterval(() => {
+    if (session) loadShip();
+  }, 60000);
+}
+
+function stopImmunityClock() {
+  if (immunityTimer) { clearInterval(immunityTimer); immunityTimer = null; }
+  if (shipResyncTimer) { clearInterval(shipResyncTimer); shipResyncTimer = null; }
+}
+
+// Tick de 1s: redibuja SOLO la celda del contador (no toda la tabla) para
+// que la cuenta baje en vivo sin parpadear el resto del Resumen. La fila
+// se localiza por su etiqueta (no es la última de la tabla).
+function tickImmunity() {
+  const im = shipData?.immunity;
+  if (!im) { stopImmunityClock(); return; }
+  if (!im.active) return;
+  const untilDate = parseUtc(im.until);
+  if (!untilDate) return;
+  const tr = [...document.querySelectorAll('#ovShip tr')]
+    .find(r => r.textContent.includes('Protección (inmunidad PvP)'));
+  if (!tr) return;
+  const cell = tr.querySelector('td:last-child');
+  const remainS = Math.max(0, Math.floor((untilDate - Date.now()) / 1000));
+  if (remainS <= 0) {
+    if (cell) cell.innerHTML =
+      `<span style="color:var(--danger)">⚠ vencida${im.until ? ' (' + im.until.replace('T', ' ').slice(0, 16) + ')' : ''}</span>`;
+    return;
+  }
+  if (!cell) return;
+  const h = Math.floor(remainS / 3600), m = Math.floor((remainS % 3600) / 60), sec = remainS % 60;
+  const pad = n => String(n).padStart(2, '0');
+  const countdown = `${pad(h)}:${pad(m)}:${pad(sec)}`;
+  if (remainS < 3600) {
+    cell.innerHTML =
+      `<span style="color:var(--warn)">activa — vence en ${countdown}</span> ` +
+      `<span class="pill warn">⚠ <1h</span>`;
+  } else {
+    cell.innerHTML =
+      `<span style="color:var(--success)">activa — vence en ${countdown}</span>`;
   }
 }
 
@@ -573,15 +629,46 @@ function shieldRow() {
 
 // Inmunidad PvP: el "escudo de protección" del juego (immunity shields).
 // Es el único valor de escudo/protección que la API expone para una nave
-// fuera de batalla (diagnóstico 2026-10-04, issue #1).
+// fuera de batalla (diagnóstico 2026-10-04, issue #1). El contador corre
+// EN VIVO en el cliente (issue #4): la fecha llega en UTC, así que se
+// compara contra UTC para no depender de la zona horaria del navegador.
+function parseUtc(s) {
+  // "2026-10-04T19:06:36" (la API no manda zona) -> Date en UTC
+  if (!s) return null;
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
+  if (!m) return null;
+  return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]));
+}
+
 function immunityRow() {
   const im = shipData?.immunity;
   if (!im) return '';
   const until = im.until ? im.until.replace('T', ' ').slice(0, 16) : '';
-  const val = im.active
-    ? `<span style="color:var(--success)">activa hasta ${until}</span>`
-    : `<span style="color:var(--text-3)">sin inmunidad activa${until ? ' (última: ' + until + ')' : ''}</span>`;
-  return row('Protección (inmunidad PvP)', val);
+  if (!im.active) {
+    return row('Protección (inmunidad PvP)',
+      `<span style="color:var(--text-3)">sin inmunidad activa${until ? ' (última: ' + until + ')' : ''}</span>`);
+  }
+  const untilDate = parseUtc(im.until);
+  if (!untilDate) {
+    // Fecha no parseable: no fabricar una cuenta regresiva falsa (issue #4)
+    return row('Protección (inmunidad PvP)',
+      `<span style="color:var(--success)">activa hasta ${until || '(fecha desconocida)'}</span>`);
+  }
+  const remainS = Math.max(0, Math.floor((untilDate - Date.now()) / 1000));
+  if (remainS === 0) {
+    return row('Protección (inmunidad PvP)',
+      `<span style="color:var(--danger)">⚠ vencida${until ? ' (' + until + ')' : ''}</span>`);
+  }
+  const h = Math.floor(remainS / 3600), m = Math.floor((remainS % 3600) / 60), sec = remainS % 60;
+  const pad = n => String(n).padStart(2, '0');
+  const countdown = `${pad(h)}:${pad(m)}:${pad(sec)}`;
+  if (remainS < 3600) {  // < 1h: alerta de vencimiento (issue #4)
+    return row('Protección (inmunidad PvP)',
+      `<span style="color:var(--warn)">activa — vence en ${countdown}</span> ` +
+      `<span class="pill warn">⚠ <1h</span>`);
+  }
+  return row('Protección (inmunidad PvP)',
+    `<span style="color:var(--success)">activa — vence en ${countdown}</span>`);
 }
 
 function renderOverview() {
