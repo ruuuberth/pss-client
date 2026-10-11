@@ -567,8 +567,8 @@ function shieldRow() {
     return row('Escudo', s?.shield);
   }
   const names = info.rooms.map(r => r.name).join(', ');
-  const val = `${s?.shield} <span style="color:var(--muted-foreground)">· fuera de batalla; en combate lo generan ${info.rooms.length} salas: ${names}</span>`;
-  return `<div class="row"><span>Escudo</span><span>${val}</span></div>`;
+  const val = `${s?.shield} <span style="color:var(--text-3)">· fuera de batalla; en combate lo generan ${info.rooms.length} salas: ${names}</span>`;
+  return row('Escudo', val);
 }
 
 // Inmunidad PvP: el "escudo de protección" del juego (immunity shields).
@@ -579,9 +579,9 @@ function immunityRow() {
   if (!im) return '';
   const until = im.until ? im.until.replace('T', ' ').slice(0, 16) : '';
   const val = im.active
-    ? `<span style="color:#22c55e">activa hasta ${until}</span>`
-    : `<span style="color:var(--muted-foreground)">sin inmunidad activa${until ? ' (última: ' + until + ')' : ''}</span>`;
-  return `<div class="row"><span>Protección (inmunidad PvP)</span><span>${val}</span></div>`;
+    ? `<span style="color:var(--success)">activa hasta ${until}</span>`
+    : `<span style="color:var(--text-3)">sin inmunidad activa${until ? ' (última: ' + until + ')' : ''}</span>`;
+  return row('Protección (inmunidad PvP)', val);
 }
 
 function renderOverview() {
