@@ -62,6 +62,39 @@ El `refreshToken` se persiste en `~/.pss-client/tokens.json` (junto al accessTok
 
 El `session_token` que usa el navegador es estable por cuenta (`uuid5` del email), no rota con las renovaciones del accessToken (issue #5).
 
+### Migración del session_token (antes de `d9aebeb`)
+
+Si instalaste pss-client **antes** del commit `d9aebeb`, tu navegador guarda todavía el formato antiguo del `session_token`. Esta es la diferencia:
+
+| | Formato | Estabilidad |
+|---|---|---|
+| ❌ Antes | `sess_{user_id}_{access_token[:16]}` | Rotaba con cada renovación del accessToken (~1 h) |
+| ✅ Ahora | `sess_{user_id}_{uuid5(email)}` | Estable para siempre, no depende de ningún token interno |
+
+**Qué pasó:** el formato viejo derivaba del `accessToken`, que el servidor renueva cada ~1 h. Tras una renovación y un reinicio del servidor, `_restore_sessions` restauraba la sesión con el token nuevo y el `session_token` guardado en el navegador quedaba huérfano → `401` en `/user/me` → re-login obligatorio aunque el `refreshToken` de `~/.pss-client/tokens.json` siguiera siendo válido (secuencia completa en el issue #5).
+
+**Cómo te afecta:** no hay que hacer nada salvo **un re-login, una sola vez**. Al actualizar, el primer arranque del dashboard devolverá `401` con `reason: session_expired` y el login mostrará el aviso *"Sesión expirada, inicia sesión de nuevo"* (desde PR #10 no se limpia la sesión en silencio). Al iniciar sesión de nuevo se genera el `session_token` nuevo y estable, que sobrevive renovaciones y reinicios sin pedírtelo otra vez. El `refreshToken` persistido no se ve afectado por esta migración.
+
+**Migración manual (opcional):** si prefieres evitar el re-login, puedes regenerar el `session_token` tú mismo — el `uuid5` es determinista, así que basta con reemplazar el **valor completo** de la clave `pss_session` en el localStorage de `http://localhost:8000` (la clave guarda la cadena del token tal cual, no un objeto):
+
+```bash
+uv run python -c "
+from uuid import NAMESPACE_URL, uuid5
+email = 'usuario@ejemplo.com'   # tu email de login (se normaliza: strip + lower)
+user_id = 11586440              # tu user_id (aparece en ~/.pss-client/tokens.json)
+print(f'sess_{user_id}_{uuid5(NAMESPACE_URL, f\"pss-client:session:{email.strip().lower()}\")}')"
+# usuario@ejemplo.com → sess_11586440_c561aecc-2631-5584-a82f-6978e6a61043
+```
+
+Y en la consola del navegador (DevTools, con `http://localhost:8000` abierto y el servidor ya reiniciado con el código nuevo):
+
+```js
+localStorage.setItem('pss_session', 'sess_11586440_c561aecc-2631-5584-a82f-6978e6a61043');
+location.reload(); // el dashboard arranca con el token estable, sin re-login
+```
+
+**Referencias:** issue [#5](https://github.com/ruuuberth/pss-client/issues/5) (análisis del bug), fix en `d9aebeb` (formato estable + `/user/me` con renovación), PR [#10](https://github.com/ruuuberth/pss-client/pull/10) (`f4ce0fd`: 401 estructurado, aviso en el login y `POST /auth/refresh` para forzar la renovación en tests).
+
 ## Endpoints del gateway
 
 Todos los endpoints (salvo `/` y `/health`) son `POST` con JSON y se autentican con `session_token`. Referencia completa con ejemplos en [docs/API.md](docs/API.md).
