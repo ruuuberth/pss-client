@@ -655,7 +655,12 @@ function immunityRow() {
       `<span style="color:var(--success)">activa hasta ${until || '(fecha desconocida)'}</span>`);
   }
   const remainS = Math.max(0, Math.floor((untilDate - Date.now()) / 1000));
-  if (remainS === 0) {
+  // Misma frontera de vencida que tickImmunity() (<= 0, review PR #14). Con el
+  // clamp de Math.max el comportamiento hoy es idéntico, pero === 0 solo
+  // describía el instante exacto: si el clamp desapareciera, un delta negativo
+  // caería al countdown; <= 0 mantiene la ruta de vencida y la coherencia
+  // render inicial ↔ tick pase lo que pase con el clamp.
+  if (remainS <= 0) {
     return row('Protección (inmunidad PvP)',
       `<span style="color:var(--danger)">⚠ vencida${until ? ' (' + until + ')' : ''}</span>`);
   }

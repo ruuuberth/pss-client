@@ -180,3 +180,48 @@ def test_logout_detiene_el_reloj(source):
         "doLogout() no detiene el reloj de inmunidad: dejaría corriendo "
         "el tick y el re-sync tras cerrar sesión"
     )
+
+
+# ---------- Review PR #14: frontera exacta de vencida (remainS <= 0) ---------- #
+
+def test_immunityrow_frontera_vencida_remain_le_0(source):
+    """La condición de vencida de immunityRow() es remainS <= 0 (frontera exacta).
+
+    La frontera debe ser la misma que usa tickImmunity(): <= 0. Con el clamp
+    de Math.max(0, ...) ambos operadores se comportan hoy igual, pero === 0
+    solo describía el instante exacto del vencimiento y quedaba a un paso de
+    mostrar una cuenta 00:00:00 vencida si el clamp cambiaba.
+    """
+    body = _fn_body(source, "immunityRow")
+    m = re.search(r"if \(remainS\s*(<=|===|==|<)\s*0\)", body)
+    assert m, "immunityRow() no tiene condición de vencida sobre remainS"
+    assert m.group(1) == "<=", (
+        f"immunityRow() marca vencida con remainS {m.group(1)} 0 — el tick usa "
+        "<= 0 y se autocorrige en 1s: el render inicial debe usar la misma "
+        "frontera exacta (issue del review del PR #14)"
+    )
+
+
+def test_immunityrow_y_tick_misma_condicion_vencida(source):
+    """immunityRow() y tickImmunity() comparten la MISMA condición de vencida."""
+    def cond(body):
+        m = re.search(r"if \(remainS\s*(<=|===|==|<)\s*0\)", body)
+        assert m, "no hay condición de vencida sobre remainS"
+        return m.group(1)
+    row_cond = cond(_fn_body(source, "immunityRow"))
+    tick_cond = cond(_fn_body(source, "tickImmunity"))
+    assert row_cond == tick_cond == "<=", (
+        "immunityRow() y tickImmunity() deben usar la misma frontera de vencida "
+        f"(remainS <= 0): hoy divergen (immunityRow {row_cond}, tick {tick_cond}) "
+        "y el render inicial puede mostrar una cuenta 00:00:00 ya vencida"
+    )
+
+
+def test_tick_condicion_vencida_no_se_cambia(source):
+    """Guard: el tick sigue siendo la referencia de la frontera (remainS <= 0)."""
+    body = _fn_body(source, "tickImmunity")
+    assert re.search(r"if \(remainS\s*<=\s*0\)", body), (
+        "tickImmunity() ya no usa remainS <= 0: es la referencia de la frontera "
+        "de vencida; si cambió a propósito, revisar también immunityRow() y "
+        "test_immunityrow_y_tick_misma_condicion_vencida"
+    )
