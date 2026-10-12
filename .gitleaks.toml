@@ -1,0 +1,27 @@
+# Configuración de gitleaks para pss-client.
+#
+# La usa .github/workflows/ci.yml (GITLEAKS_CONFIG: .gitleaks.toml) y en local:
+#   gitleaks detect --no-banner --source . --config .gitleaks.toml
+#
+# Se usan las reglas por defecto de gitleaks ([extend] useDefault) sin ninguna
+# exclusión todavía: el escaneo del historial completo (25 commits, gitleaks
+# 8.24.3, 2026-10-12) no devuelve hallazgos, así que no hay tokens que
+# baselinear. Si en el futuro gitleaks marca un falso positivo o un secreto
+# viejo que ya no se puede remediar, baselinearlo aquí:
+#
+#   1) Exportar el hallazgo:
+#        gitleaks detect --no-banner --source . --config .gitleaks.toml \
+#          --report-path /tmp/leaks.json --report-format json
+#   2) Generar/actualizar el baseline:
+#        gitleaks baseline --baseline-path .gitleaks.toml --report-path /tmp/leaks.json
+#   3) Revisar el diff de este fichero ANTES de commitear: un baseline es una
+#      excepción aceptada y debe quedar justificada en la descripción.
+#
+# Alternativa manual para falsos positivos puntuales: añadir entradas al
+# [allowlist] de abajo (paths/regexes) documentando el motivo.
+
+[extend]
+useDefault = true
+
+[allowlist]
+  description = "Exclusiones globales de pss-client (vacía: sin falsos positivos conocidos)"
