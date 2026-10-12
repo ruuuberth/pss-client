@@ -18,7 +18,11 @@ dependencies = [
 Repository = "https://github.com/ruuuberth/pss-client"
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+# Suite de tests (CI: pip install -e ".[dev]" && pytest)
+dev = [
+    "pytest>=8",
+    "anyio>=4",  # plugin pytest de anyio: backends asyncio para tests async
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
