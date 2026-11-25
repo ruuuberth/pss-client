@@ -21,7 +21,7 @@ from pss_client.auth import PssAuth, UserLogin
 from pss_client.transport import PssApiError, PssHttpClient
 from pss_client.ship import PssShipService
 from pss_client.game import PssGameService, create_action_checksum
-from pss_client.designs import get_design_catalog, stat_for_level
+from pss_client.designs import get_design_catalog, stat_for_level, max_hp_for
 
 # --- Logging: archivo + consola ---------------------------------------------- #
 LOG_FILE = os.path.join(os.path.dirname(__file__), "..", "pss-client.log")
@@ -425,7 +425,8 @@ async def get_ship_info(req: SessionRequest):
         # XML siempre); lo computa el motor de batalla desde estas rooms.
         # (diagnóstico 2026-10-03, ver issue #1)
         shield_rooms = []
-        char_max_hp: dict[int, float] = {}
+        char_max_hp: dict[int, int] = {}
+        char_base_max_hp: dict[int, float] = {}
         try:
             dhttp = PssHttpClient()
             catalog = await get_design_catalog(dhttp, login.access_token)
@@ -434,18 +435,22 @@ async def get_ship_info(req: SessionRequest):
             room_stats = catalog.get("room_stats", {})
             # max HP por personaje: interpolación del catálogo
             # (PSCharacter.GetStatForLevel desensamblado, ver designs.stat_for_level)
+            # + bonus de gym: HpImprovement del XML de la nave aplicado como
+            # round(base)*(100+g)//100 (GetMaxHPForLevel RVA 0x3853E20, issue #7)
             char_stats = catalog.get("character_stats", {})
             for c in ship.characters:
                 cs = char_stats.get(c.character_design_id)
                 if not cs:
                     continue
-                char_max_hp[c.character_id] = round(stat_for_level(
+                base = stat_for_level(
                     level=c.level,
                     basic=float(cs.get("hp", 0)),
                     final=float(cs.get("final_hp", 0)),
                     max_level=int(cs.get("max_level", 40) or 40),
                     progression=cs.get("progression", "Linear"),
-                ), 1)
+                )
+                char_base_max_hp[c.character_id] = round(base, 1)
+                char_max_hp[c.character_id] = max_hp_for(base, c.hp_improvement)
             for r in ship.rooms:
                 if room_types.get(r.room_design_id) == "Shield":
                     stats = room_stats.get(r.room_design_id, {})
@@ -458,6 +463,18 @@ async def get_ship_info(req: SessionRequest):
                         "max_system_power": stats.get("max_system_power", ""),
                         "capacity": stats.get("capacity", ""),
                     })
+            # Escudo máximo del hangar: PSShip.get_MaxShield (RVA 0x38CABC0)
+            # desensamblado = Σ Capacity(roomDesign de cada sala RoomType==Shield)
+            # × 100.0. Es el tope de la barra de escudo del juego
+            # (MainSceneUIManager.UpdateStatusPanel RVA 0x3591E30: la muestra si
+            # MaxShield>0, la oculta si <=0). El XML siempre reporta Shield=0
+            # (estado de batalla, ver issue #1); este es su equivalente de
+            # hangar (issue #8).
+            shield_rooms = sorted(shield_rooms, key=lambda x: x["room_id"])
+            capacity_sum = sum(
+                int(float(r["capacity"] or 0)) for r in shield_rooms
+            )
+            max_shield = capacity_sum * 100
             # info extendida de habitaciones: nombre, tipo y nivel del catálogo
             rooms_info = {}
             for r in ship.rooms:
@@ -473,17 +490,22 @@ async def get_ship_info(req: SessionRequest):
         except Exception as exc:
             logger.warning("[ship/info] join de shield rooms falló: %r", exc)
         rooms_info = locals().get("rooms_info", {})
+        # shield_rooms/max_shield solo existen si el join del catálogo no
+        # falló; con 0 salas de escudo el máximo es 0 (el juego oculta la barra)
+        shield_rooms = locals().get("shield_rooms", [])
+        max_shield = locals().get("max_shield", 0)
         return {
             "success": True,
             "shield_info": {
-                "note": ("El escudo de la nave solo existe EN BATALLA: en el juego "
+                "max_shield": max_shield,
+                "rooms": shield_rooms,
+                "note": ("El escudo restante solo existe EN BATALLA: "
                          "el panel de escudo vive en BattleSceneUIManager (HUD de "
                          "combate) y lo generan las salas de escudo. Fuera de "
                          "combate la API reporta Shield=0 (verificado tambien en "
                          "InspectShipViaShipId). El equivalente fuera de batalla es "
                          "la INMUNIDAD PvP (ImmunityDate): el 'escudo de "
                          "proteccion' del juego."),
-                "rooms": shield_rooms,
             },
             "immunity": _immunity_info(ship.immunity_date),
             "ship": {
@@ -493,6 +515,7 @@ async def get_ship_info(req: SessionRequest):
                 "ship_design_id": ship.ship_design_id,
                 "ship_status": ship.ship_status,
                 "hp": ship.hp,
+                "max_shield": max_shield,
                 "shield": ship.shield,
                 "power_score": ship.power_score,
                 "star_system_id": ship.star_system_id,
@@ -518,6 +541,8 @@ async def get_ship_info(req: SessionRequest):
                     "level": c.level,
                     "hp": c.hp,
                     "max_hp": char_max_hp.get(c.character_id, c.max_hp) or c.max_hp,
+                    "base_max_hp": char_base_max_hp.get(c.character_id) if c.hp_improvement else None,
+                    "hp_gym_bonus": c.hp_improvement or None,
                     "shield": c.shield,
                     "race_id": c.race_id,
                     "weapon_design_id": c.weapon_design_id,

@@ -557,18 +557,19 @@ function statusPill(status) {
   return `<span class="pill ${cls}">● ${status || 'Desconocido'}</span>`;
 }
 
-// El escudo es estado de batalla: el servidor siempre reporta el restante
-// tras la última batalla (0 = sin escudo acumulado). Mostrar las salas de
-// escudo que lo generan en combate (diagnóstico 2026-10-03, issue #1).
+// El XML reporta Shield=0 fuera de batalla. El dato de hangar es MaxShield:
+// Σ Capacity de las salas Shield × 100 (PSShip.get_MaxShield, issue #8).
 function shieldRow() {
   const info = shipData?.shield_info;
-  const s = shipData?.ship;
-  if (!info || !info.rooms || info.rooms.length === 0) {
-    return row('Escudo', s?.shield);
-  }
-  const names = info.rooms.map(r => r.name).join(', ');
-  const val = `${s?.shield} <span style="color:var(--text-3)">· fuera de batalla; en combate lo generan ${info.rooms.length} salas: ${names}</span>`;
-  return row('Escudo', val);
+  if (!info) return row('Escudo máximo', null);
+  const maxShield = info.max_shield || 0;
+  const rooms = info.rooms || [];
+  if (!maxShield) return row('Escudo máximo', 0);
+  const names = rooms.map(r => r.name).join(', ');
+  const detail = rooms.length
+    ? ` <span style="color:var(--text-3)">· generado por ${rooms.length} salas: ${names}</span>`
+    : '';
+  return row('Escudo máximo', `${maxShield}${detail}`);
 }
 
 // Inmunidad PvP: el "escudo de protección" del juego (immunity shields).
@@ -636,8 +637,12 @@ function renderCrew() {
   }
   $('crewBody').innerHTML = chars.map(c => {
     const maxHp = c.max_hp;
+    // El desglose solo interpola valores numéricos normalizados por el backend.
+    const gymDetail = c.hp_gym_bonus && c.base_max_hp != null
+      ? `<br><span class="sub2">base ${c.base_max_hp} · +${c.hp_gym_bonus}% gym</span>`
+      : '';
     const hpCell = maxHp
-      ? `<span class="mono">${c.hp || 0} <span class="sub2">/ ${maxHp}</span></span>`
+      ? `<span class="mono">${c.hp || 0} <span class="sub2">/ ${maxHp}</span></span>${gymDetail}`
       : '<span class="sub2">—</span>';
     return `
     <tr>
