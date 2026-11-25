@@ -23,3 +23,7 @@ uv.lock
 
 # Entorno
 .env
+
+# Herramientas locales
+graphify-out/
+pss-server.out
