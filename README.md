@@ -31,6 +31,8 @@ uv run python -m pss_client.api  # gateway en http://localhost:8000
 
 Abre `http://localhost:8000` en el navegador, entra con tu email y contraseña del juego y verás el dashboard.
 
+Para desarrollo, `uv sync --extra dev` instala también pytest y `uv run python -m pytest -q` ejecuta la suite offline completa.
+
 Smoke test del paso 1 del login contra la API real (sin credenciales propias):
 
 ```bash
@@ -89,8 +91,8 @@ Todos los endpoints (salvo `/` y `/health`) son `POST` con JSON y se autentican 
 ## Estado y limitaciones
 
 - Solo lectura en su mayor parte; las acciones implementadas son recolectar recursos y la recompensa diaria (issue #6).
-- El escudo de la nave **solo existe en batalla**: la API siempre reporta `Shield=0` fuera de combate; el dashboard muestra la inmunidad PvP (`ImmunityDate`) como protección real (issues #1 y #4).
-- El max HP de personajes se deriva del catálogo **sin** el bonus de entrenamiento del gym — el XML sí expone `HpImprovement` y quedará aplicarlo (issue #7, abierto).
+- El escudo restante **solo existe en batalla**: la API reporta `Shield=0` fuera de combate; el dashboard muestra el máximo derivado de salas Shield y, aparte, la inmunidad PvP (`ImmunityDate`) (issues #1, #4 y #8).
+- El max HP de personajes se deriva del catálogo e incluye el bonus del gym (`HpImprovement`): `round(base) * (100 + bonus) // 100`; Tripulación desglosa base y bonus (issue #7).
 - `Hp` del casco es el daño real pendiente de reparar (no se regenera solo).
 - Casos abiertos de robustez de sesiones en el issue #9 (circuit-breaker de refresh fallido, vida del refreshToken).
 
