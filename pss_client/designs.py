@@ -205,8 +205,8 @@ def stat_for_level(level: int, basic: float, final: float,
     Fórmula desensamblada del juego:
         pct   = GetFinalPercentageForLevel(level)   # según ProgressionType
         stat  = (pct * final + (1 - pct) * basic) * (1 + bonus/100)
-    El bonus (entrenamiento/gym, BoostValuesString) no se aplica aquí: es
-    estado por-usuario que el XML de la nave no expone.
+    El bonus que aquí entra (int) es el del catálogo (BoostValuesString), no
+    el de gym: el de gym se aplica ARRIBA de esta función (ver max_hp_for).
 
     ProgressionType (verificado en el catálogo: Linear 489, EaseIn 48,
     EaseOut 17):
@@ -224,3 +224,15 @@ def stat_for_level(level: int, basic: float, final: float,
     else:  # Linear
         pct = x
     return pct * float(final) + (1 - pct) * float(basic)
+
+
+def max_hp_for(base: float, gym_bonus: int) -> int:
+    """Aplica el bonus de gym (HpImprovement) al HP base de un personaje.
+
+    Réplica de PSCharacter.GetMaxHPForLevel (RVA 0x3853E20), que primero
+    redondea el HP interpolado a entero (GetStatForLevel con digits=1) y
+    luego multiplica por (100 + HpImprovement)/100 con división entera:
+        maxHP = round(base) * (100 + gym_bonus) // 100
+    Es un porcentaje sobre el HP base — +22 de gym = +22% — no +22 HP.
+    """
+    return round(base) * (100 + gym_bonus) // 100

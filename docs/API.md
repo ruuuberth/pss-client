@@ -115,8 +115,10 @@ Campos derivados y qué significan:
 - `ship.hp` — casco: es el **daño pendiente de reparar**, no un HP actual (issue #1).
 - `ship.shield` — **siempre 0 fuera de batalla** (issue #1); ver `shield_info`.
 - `immunity` — inmunidad PvP derivada de `ImmunityDate` (UTC): `{active: bool, until: "2026-10-04T19:06:36", raw: …}` (issue #4).
-- `shield_info.rooms` — las salas de escudo del usuario con su `capacity` del catálogo (el `MaxShield` del juego es `Σ capacity × 100` — issue #8).
-- `characters[].max_hp` — HP máximo derivado: interpolación `GetStatForLevel` sobre los stats del `CharacterDesign` (issue #2). **Sin bonus de gym** por ahora (issue #7, abierto).
+- `shield_info.max_shield` / `ship.max_shield` — escudo máximo de hangar: `Σ capacity × 100` de las salas Shield (issue #8).
+- `shield_info.rooms` — las salas que aportan ese máximo, con su `capacity` del catálogo.
+- `characters[].max_hp` — HP máximo con gym: `round(base) * (100 + HpImprovement) // 100`; el base interpola `GetStatForLevel` sobre el `CharacterDesign` (issues #2 y #7).
+- `characters[].base_max_hp` / `hp_gym_bonus` — base interpolado antes del bonus y porcentaje de gym, presentes cuando hay mejora.
 - `rooms[].name/type/level/category` — resueltos del catálogo (p. ej. `"Med Bay Lv6"`, `"Reactor"`, `"Computer"`).
 
 Response (recortado):
@@ -125,7 +127,8 @@ Response (recortado):
 {
   "success": true,
   "shield_info": {
-    "note": "El escudo de la nave solo existe EN BATALLA… El equivalente fuera de batalla es la INMUNIDAD PvP (ImmunityDate)…",
+    "max_shield": 1700,
+    "note": "El escudo restante solo existe EN BATALLA… El equivalente fuera de batalla es la INMUNIDAD PvP…",
     "rooms": [
       { "room_id": 12345, "room_design_id": 2000,
         "name": "Shield Generator Lv15", "status": "Activate",
@@ -136,7 +139,7 @@ Response (recortado):
   "ship": {
     "ship_id": 8761013, "ship_name": "…", "ship_level": 14,
     "ship_design_id": 386, "ship_status": "Defending",
-    "hp": 39, "shield": 0, "power_score": 2446,
+    "hp": 39, "max_shield": 1700, "shield": 0, "power_score": 2446,
     "star_system_id": 8, "immunity_date": "2026-10-04T19:06:36",
     "status_start_date": "…", "update_date": "…",
     "characters_count": 17, "rooms_count": 25, "items_count": 40
@@ -144,7 +147,7 @@ Response (recortado):
   "characters": [
     { "character_id": 33001, "character_design_id": 30,
       "name": "Ninja rojo", "level": 33,
-      "hp": 0, "max_hp": 6.3, "shield": 0,
+      "hp": 0, "max_hp": 7, "base_max_hp": 6.3, "hp_gym_bonus": 20, "shield": 0,
       "race_id": 1, "weapon_design_id": 1002, "ability_design_id": 0,
       "room_id": 14001 }
   ],

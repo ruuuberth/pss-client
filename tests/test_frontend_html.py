@@ -10,7 +10,7 @@ y edge cases) se hace manualmente con el archivo servido localmente;
 ver la sección de verificación del PR que cierra el issue #12.
 
 Uso:
-    python -m pytest test_frontend_html.py -q
+    python -m pytest tests/test_frontend_html.py -q
 """
 
 from pathlib import Path
@@ -18,7 +18,7 @@ import re
 
 import pytest
 
-HTML = Path(__file__).parent / "frontend" / "index.html"
+HTML = Path(__file__).parent.parent / "frontend" / "index.html"
 
 
 @pytest.fixture(scope="module")
@@ -104,3 +104,18 @@ def test_colores_de_las_filas_usan_variables_definidas(source):
     assert not faltan, (
         f"Variables CSS usadas pero no definidas en :root: {sorted(faltan)}"
     )
+
+
+def test_shieldrow_muestra_el_maximo_derivado(source):
+    """El Resumen muestra MaxShield, no el Shield=0 fuera de batalla."""
+    body = _fn_body(source, "shieldRow")
+    assert "info.max_shield" in body
+    assert "Escudo máximo" in body
+    assert "s?.shield" not in body
+
+
+def test_crew_muestra_base_y_bonus_de_gym(source):
+    """Tripulación desglosa el HP base y el bonus ya devueltos por la API."""
+    body = _fn_body(source, "renderCrew")
+    assert "c.base_max_hp" in body
+    assert "c.hp_gym_bonus" in body

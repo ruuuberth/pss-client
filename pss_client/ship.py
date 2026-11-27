@@ -26,10 +26,27 @@ class Character:
     ability_design_id: int
     current_room_id: int
     sprite_design_id: int
+    # entrenamiento del gym (issue #7): GetShipByUserId expone estos campos
+    # por personaje; *Improvement es el bonus persistido (p.ej. HpImprovement
+    # entra al max HP como base*(100+g)/100 — GetMaxHPForLevel RVA 0x3853E20).
+    hp_improvement: int = 0
+    attack_improvement: int = 0
+    pilot_improvement: int = 0
+    repair_improvement: int = 0
+    science_improvement: int = 0
+    engine_improvement: int = 0
+    weapon_improvement: int = 0
+    stamina_improvement: int = 0
+    ability_improvement: int = 0
+    boost_level: int = 0
+    fatigue: int = 0
     raw: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_xml(cls, node: ET.Element) -> "Character":
+        def imp(name: str) -> int:
+            return int(float(node.attrib.get(name, 0) or 0))
+
         return cls(
             character_id=int(node.attrib.get("CharacterId", 0)),
             character_design_id=int(node.attrib.get("CharacterDesignId", 0)),
@@ -45,6 +62,17 @@ class Character:
             ability_design_id=int(node.attrib.get("AbilityDesignId", 0)),
             current_room_id=int(node.attrib.get("CurrentRoomId", 0) or node.attrib.get("DesignatedRoomId", 0)),
             sprite_design_id=int(node.attrib.get("SpriteDesignId", 0)),
+            hp_improvement=imp("HpImprovement"),
+            attack_improvement=imp("AttackImprovement"),
+            pilot_improvement=imp("PilotImprovement"),
+            repair_improvement=imp("RepairImprovement"),
+            science_improvement=imp("ScienceImprovement"),
+            engine_improvement=imp("EngineImprovement"),
+            weapon_improvement=imp("WeaponImprovement"),
+            stamina_improvement=imp("StaminaImprovement"),
+            ability_improvement=imp("AbilityImprovement"),
+            boost_level=imp("BoostLevel"),
+            fatigue=imp("Fatigue"),
             raw=dict(node.attrib),
         )
 

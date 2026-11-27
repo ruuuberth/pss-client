@@ -97,19 +97,22 @@ Itera las rooms; para cada una con `get_RoomType() == 6` (`public const RoomType
 
 `MainSceneUIManager.UpdateStatusPanel` (RVA 0x3591E30) es el único método que alimenta el `shieldPanel` (0xD0) del hangar: si `MaxShield > 0` muestra la barra (`InitBar(2, ceil(MaxShield/100.0))`); si es ≤ 0 la **oculta**. El juego **no muestra "escudo: 0"** fuera de batalla — muestra la capacidad máxima (issue #8, comentario con verificación real: las 4 salas Shield suman (2+3+0+12)×100 = **1.700**).
 
-### 6.3 HP máximo de personaje — base interpolada + bonus de gym (issue #7, PENDIENTE de aplicar)
+### 6.3 HP máximo de personaje — base interpolada + bonus de gym (issue #7)
 
-- El XML de cada `<Character>` de `GetShipByUserId` **sí expone el entrenamiento**: `HpImprovement, AttackImprovement, PilotImprovement, RepairImprovement, ScienceImprovement, EngineImprovement, WeaponImprovement, StaminaImprovement, AbilityImprovement, BoostLevel, Fatigue, TrainingData, TrainingDesignId`.
+- El XML de cada `<Character>` de `GetShipByUserId` expone el entrenamiento: `HpImprovement, AttackImprovement, PilotImprovement, RepairImprovement, ScienceImprovement, EngineImprovement, WeaponImprovement, StaminaImprovement, AbilityImprovement, BoostLevel, Fatigue, TrainingData, TrainingDesignId`.
 - `PSCharacter.get_TrainingUsed` (RVA 0x3851540) = suma de los 9 campos `*Improvement` — el medidor de capacidad del gym (`TrainingCapacity` del diseño).
-- `PSCharacter.CharacterStats.HPAtLvl` (RVA 0x3871140): llama a `GetStatForLevel` y aplica `get_HP() = (HPAtLvl(level) + tempHP) × modHP` con `tempHP=modHP=1.0` fuera de batalla (constantes en 0x13677b0). `get_MaxHp` = `currentStats.get_HP() × 100.0` (la escala del factor ×100 viene de los Improvement).
-- Enum `TrainingStat` (dump.cs L29827): `Unknown=0, Hp=1, Attack=2, Science=3, Repair=4, Stamina=5…` — `HpImprovement` es la mejora entrenada del stat Hp.
-- Fórmula objetivo: `max_hp = (stat_for_level(level, Hp, FinalHp, MaxCharLevel, ProgressionType) + hp_improvement_bonus) × 1.0`, con la escala exacta del bonus pendiente de calibrar contra el juego (issue #7).
+- `PSCharacter.CharacterStats.HPAtLvl` (RVA 0x3871140): llama a `GetStatForLevel` y aplica `get_HP() = (HPAtLvl(level) + tempHP) × modHP` con `tempHP=modHP=1.0` fuera de batalla (constantes en 0x13677b0).
+- Fórmula implementada en `designs.max_hp_for` (RVA 0x3853E20):
+  `max_hp = round(stat_for_level(level, Hp, FinalHp, MaxCharLevel, ProgressionType)) × (100 + HpImprovement) // 100`.
+- `ship.py` parsea los 9 `*Improvement` + `BoostLevel` + `Fatigue`; `api.py` usa el base redondeado para devolver `base_max_hp` y el porcentaje en `hp_gym_bonus`, y el frontend muestra el desglose en Tripulación.
+- Pendiente: verificación E2E contra los valores que muestra el juego para 2-3 personajes.
 
 ## 7. Hallazgos de mecánicas (verificados)
 
 - **El escudo de la nave solo existe EN BATALLA** (issues #1 y #4, verificado por tres vías): `Shield="0"` en las 26 respuestas de `GetShipByUserId` del log, también en `InspectShipViaShipId`; `get_Shield`/`HasActiveShieldDefense` son de `ShipBattleEntity` y el panel de escudo (`playerShieldPanel`) vive en `BattleSceneUIManager` (HUD de combate); pssapi mapea un único campo `Shield`. `ProduceShield`/`RegenerateShields` son código de batalla que computa el escudo en vivo desde las salas.
 - **`ImmunityDate` = inmunidad PvP**: hasta cuándo la nave no puede ser atacada — el juego la llama *"immunity shields"* ("You can use immunity shields to prevent your ship from being attacked while you are away"). Es el único valor de "protección" real fuera de batalla; viaja en el XML del Ship y debe interpretarse en **UTC**. Permanece con `active=False` tras vencer (issue #4).
 - **`Hp` del casco es el daño pendiente de reparar** (real, no un bug): no se regenera con el tiempo; se repara con el botón del juego (issue #1).
+- El Resumen muestra **`max_shield`** derivado de las salas Shield, no el `Shield=0` del XML (issue #8): `Σ Capacity × 100`.
 - **El catálogo de diseños** (`DesignService`): flujo de 3 pasos — `SettingService/GetLatestVersion4` da las versiones actuales de cada catálogo; `ListAllStaticDesigns` (~13.5 MB) trae habitaciones/personajes/naves; `ListAllDynamicDesigns` trae misiones e items. Las respuestas son **base64(gzip(XML))** aunque el Content-Type diga `application/xml`, y **con versiones en 0 la API devuelve el catálogo VACÍO** — hay que pedir primero las versiones del Setting (commit `d7dc189`). Conteos verificados: 554 `CharacterDesign`, 798 `RoomDesign`, 228 `TaskDesign`, 2588 `ItemDesign` (issue #2).
 - **Lección de parseo XML** (commit `7a7fc7f`): los atributos usan capitalización exacta (`BattleCharacterHp`, no `BattleCharacterHP`); verificar contra los raw models de pssapi antes de asumir. El nombre del personaje viaja como `CharacterName` (no `Name`).
 
@@ -137,8 +140,8 @@ Artefactos del dump (local del autor): `~/Work/il2cpp_output/` con `dump.cs`, `s
 | Caducidad del accessToken (~52 min) + renovación | #3 (cerrado), commits `d9901c6`, `f4ce0fd` |
 | `ImmunityDate` = inmunidad PvP en el dashboard | #4, commit `d9901c6` |
 | `session_token` estable (uuid5 del email) | #5, commit `d9aebeb` |
-| `get_MaxShield` = Σ Capacity×100 y `UpdateStatusPanel` | #8 (comentario de hallazgo) |
-| `HpImprovement` / entrenamiento del gym expuesto en el XML | #7 (abierto) |
+| `get_MaxShield` = Σ Capacity×100 y `UpdateStatusPanel` | #8 (comentario de hallazgo; backend/UI aplicados, E2E de UI pendiente) |
+| `HpImprovement` aplicado al `max_hp` (issue #7, pendiente E2E) | #7 |
 | Robustez de sesiones (circuit-breaker, vida del refresh) | #9 (abierto) |
 | Checksum del HeartBeat4 desensamblado | commit `fe8a0ad` |
 | deviceKey determinista (445) / rotación (400 linked_account) | commits `1897ec4`, `f1fa5b7` |
